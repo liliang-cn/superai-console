@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* A console, not a page.
+   ------------------------------------------------------------------
+   Everything here is black, a hairline, and one of four signal colours. The
+   restraint is the point: the orb is the only thing meant to glow, and it can
+   only do that if nothing else is competing. */
+@theme {
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: #000;
+}
+
+/* No overscroll bounce revealing white behind a black page, and no rubber
+   banding on a trackpad while reading a live feed. */
+body {
+  overscroll-behavior: none;
+}
+
+/* Scrollbars that do not put a grey slab down the side of a black panel. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
