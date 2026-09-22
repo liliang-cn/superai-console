@@ -45,10 +45,7 @@ export default function MemoryFeed({ events }: { events: PulseEvent[] }) {
 
   if (events.length === 0) {
     return (
-      <Vacant>
-        Nothing yet. Every recall, search and remember shows up here as it happens —
-        reads in cyan, writes in amber.
-      </Vacant>
+      <Vacant>Reads and writes to memory appear here as they happen.</Vacant>
     );
   }
 

@@ -21,6 +21,7 @@ import Tasks from "./components/Tasks";
 import IOFeed from "./components/IOFeed";
 import Exchange from "./components/Exchange";
 import Gate, { useSession } from "./components/Gate";
+import MemoryGraph, { useGraph } from "./components/MemoryGraph";
 
 // One console.
 //
@@ -94,6 +95,7 @@ function Console() {
   const phone = usePhone();
   const [feed, setFeed] = useState<Feed>("said");
   const [typed, setTyped] = useState("");
+  const graph = useGraph();
 
   // The loop, in the order it has to be built: something to send with,
   // something to say it with, and only then the ear — because the ear has to
@@ -291,7 +293,18 @@ function Console() {
               ) : feed === "task" ? (
                 <Tasks runs={meter?.runs ?? []} meter={meter} />
               ) : feed === "memory" ? (
-                <MemoryFeed events={memories} />
+                <div className="flex h-full flex-col">
+                  <div className="min-h-0 flex-1">
+                    <MemoryGraph graph={graph} />
+                  </div>
+                  <div
+                    className={`min-h-0 shrink-0 border-t border-rule-soft ${
+                      memories.length ? "h-[45%]" : "h-auto"
+                    }`}
+                  >
+                    <MemoryFeed events={memories} />
+                  </div>
+                </div>
               ) : (
                 <IOFeed events={meter?.events ?? []} />
               )}
@@ -301,8 +314,26 @@ function Console() {
       ) : (
         <main className="grid min-h-0 flex-1 grid-cols-[500px_1fr_1fr] grid-rows-2">
           {voicePanel}
+          {/* What it knows, over what it just did with it. The graph takes the
+              larger share: it is the only thing on this screen that shows
+              shape rather than sequence, and a list can be read in a strip
+              while a graph cannot. */}
           <Panel title="MEMORY" note={counts.memory} className="border-r border-b border-rule">
-            <MemoryFeed events={memories} />
+            <div className="flex h-full flex-col">
+              {/* The graph takes what the log is not using. Fixed shares put a
+                  4,657-edge nebula in 234px while an empty feed sat under it
+                  holding half the panel for two lines of placeholder. */}
+              <div className="min-h-0 flex-1">
+                <MemoryGraph graph={graph} />
+              </div>
+              <div
+                className={`min-h-0 shrink-0 border-t border-rule-soft ${
+                  memories.length ? "h-[40%]" : "h-auto"
+                }`}
+              >
+                <MemoryFeed events={memories} />
+              </div>
+            </div>
           </Panel>
           {/* Task sits top right and carries the weight: it is the only panel
               about *now*. */}
