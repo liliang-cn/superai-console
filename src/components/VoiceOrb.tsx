@@ -113,10 +113,19 @@ export default function VoiceOrb({
   activity: number;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
-  // Read through a ref inside the render loop: three.js runs on rAF and must
-  // not be re-created every time this number changes.
+  // Everything the render loop reads is read through a ref, and the effect
+  // below depends on nothing.
+  //
+  // This is not tidiness. The effect used to list `level` as a dependency, and
+  // `level` is a closure the voice hook rebuilds on every render — so every
+  // pulse frame, several times a second, React tore the whole scene down and
+  // built another one: a new WebGLRenderer, a new canvas swapped into the DOM,
+  // one frame of nothing. That is what the visible flash was. Measured before
+  // the fix: the canvas was replaced 10 times in 20 seconds.
   const activityRef = useRef(activity);
   activityRef.current = activity;
+  const levelRef = useRef(level);
+  levelRef.current = level;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -202,7 +211,7 @@ export default function VoiceOrb({
     const loop = () => {
       const t = clock.getElapsedTime();
       uniforms.uTime.value = t;
-      uniforms.uLevel.value = level();
+      uniforms.uLevel.value = levelRef.current();
       // Ease towards the target so a burst of tool calls does not strobe.
       uniforms.uActivity.value += (activityRef.current - uniforms.uActivity.value) * 0.05;
       const spin = 0.05 + uniforms.uActivity.value * 0.35;
@@ -227,7 +236,9 @@ export default function VoiceOrb({
       renderer.dispose();
       host.removeChild(renderer.domElement);
     };
-  }, [level]);
+    // Deliberately empty: the scene is built once and lives until this
+    // component unmounts. Anything it needs to read is on a ref above.
+  }, []);
 
   return <div ref={hostRef} className="absolute inset-0" />;
 }

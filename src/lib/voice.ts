@@ -183,6 +183,11 @@ export function useVoice(onUtterance: (text: string) => void): VoiceState {
     }
   }, [stop]);
 
+  // A stable identity. The getter closes over a ref, so rebuilding it every
+  // render changes nothing about what it returns — but any effect that lists
+  // it as a dependency re-runs, and one of them builds a WebGL scene.
+  const level = useCallback(() => levelRef.current, []);
+
   const suspend = useCallback((quiet: boolean) => {
     deafRef.current = quiet;
     // Only the transcript is dropped, not the audio: stopping the recogniser
@@ -196,7 +201,7 @@ export function useVoice(onUtterance: (text: string) => void): VoiceState {
 
   return {
     listening,
-    level: () => levelRef.current,
+    level,
     partial,
     error,
     canTranscribe,
