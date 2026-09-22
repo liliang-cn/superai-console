@@ -45,6 +45,55 @@ export type Speaker = {
   shut: () => void;
 };
 
+/**
+ * Strips the markdown before anything is spoken.
+ *
+ * The answer is written for a renderer, not for a voice: asterisks, hashes,
+ * pipes and backticks are instructions to a parser and nonsense to a
+ * listener. Without this the synthesiser reads them — "星号星号 成都 星号
+ * 星号" — which is the thing that made this necessary.
+ *
+ * It runs before the split, not after: a numbered list's "1." is a full stop
+ * as far as the splitter is concerned, so a list would otherwise be cut into
+ * pieces at every marker.
+ *
+ * Code fences are dropped whole. A shell command read aloud is not
+ * information, it is noise with a very long duration.
+ */
+export function plainForSpeech(md: string): string {
+  let t = md;
+  t = t.replace(/```[\s\S]*?```/g, " ");        // fenced code: gone entirely
+  t = t.replace(/!\[[^\]]*\]\([^)]*\)/g, " ");   // images: nothing to say
+  t = t.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1"); // links: the text, not the url
+  t = t.replace(/`([^`]*)`/g, "$1");            // inline code: keep the word
+  t = t
+    .split("\n")
+    .map((line) => {
+      let l = line;
+      // A table row becomes its cells, comma separated; the |---|---| rule
+      // under the header has nothing in it to say.
+      if (/^\s*\|/.test(l)) {
+        if (/^[\s|:-]+$/.test(l)) return "";
+        return l.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim()).filter(Boolean).join("，") + "。";
+      }
+      if (/^\s*([-*_]\s*){3,}$/.test(l)) return ""; // horizontal rule
+      l = l.replace(/^\s{0,3}#{1,6}\s+/, "");       // heading marks
+      l = l.replace(/^\s{0,3}>\s?/, "");            // blockquote
+      l = l.replace(/^\s*[-*+]\s+/, "");            // bullet
+      l = l.replace(/^\s*\d+[.)]\s+/, "");          // "1." — a full stop to the splitter
+      return l;
+    })
+    .join("\n");
+  t = t.replace(/\*\*([^*]+)\*\*/g, "$1"); // bold
+  t = t.replace(/(^|\W)\*([^*\n]+)\*/g, "$1$2"); // italic, but not a bare *
+  t = t.replace(/(^|\W)_([^_\n]+)_/g, "$1$2");
+  t = t.replace(/~~([^~]+)~~/g, "$1");
+  // Blank lines become one break, so the splitter sees a pause rather than
+  // three of them.
+  t = t.replace(/\n{2,}/g, "\n");
+  return t.trim();
+}
+
 /** Cuts text where a speaker would pause. The backend splits the same way for
  *  anything that asks it to; this is the browser's copy, and it only has to
  *  agree about sentences — a piece that is a little long merely waits a little
@@ -127,7 +176,7 @@ export function useSpeaker(suspend: (quiet: boolean) => void): Speaker {
 
   const say = useCallback(
     (text: string) => {
-      const body = text.trim();
+      const body = plainForSpeech(text);
       if (!body) return;
 
       // Whatever is being said is stale the moment there is a newer answer.

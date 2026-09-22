@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AIRenderer } from "@ai-gui/react";
 import type { Meter } from "../lib/api";
 import { APP_LOCALE, plugins, registry } from "../lib/aigui";
@@ -21,51 +21,90 @@ function label(s: string): string {
   return s.length <= 40 ? s : s.slice(0, 39) + "…";
 }
 
-export default function Meters({ meter }: { meter: Meter | null }) {
-  const block = useMemo(() => {
-    if (!meter) return null;
-
-    // Where the work actually went. Zero-valued rows are dropped rather than
-    // drawn flat: a rank chart of six empty bars says less than three real
-    // ones, and an idle agent should look idle.
-    const items = [
-      { name: "tool calls", value: meter.calls },
-      { name: "memory", value: meter.memory },
-      { name: "mcp", value: meter.mcp },
-      { name: "shell", value: meter.shells },
-      { name: "file reads", value: meter.reads },
-      { name: "file writes", value: meter.writes },
-    ].filter((i) => i.value > 0);
-
-    // height is given explicitly because this is a strip under a live task,
-    // not a wall on its own screen. Left to itself each panel takes about
-    // 110px and the second one lands below the panel's bottom edge — clipped,
-    // with nothing to say it was.
-    //
-    // 80 is the plugin's floor, not a preference: below it the block renders
-    // as the words "panels[0].height must be from 80 to 900 pixels" and
-    // nothing else.
-    // One panel, not three.
-    //
-    // The first version put a tokens KPI and a cached KPI above this bar. In a
-    // 490px column bigscreen stacked all three instead of sharing a row, and
-    // the wall came to 529px inside a panel with 250 — it hung 113px out the
-    // bottom. The two numbers were duplicates anyway: total tokens is already
-    // in this panel's neighbour's header and in the status bar. What was not
-    // shown anywhere is the shape of the work, which is this.
-    if (!items.length) return null;
-    const panels: unknown[] = [
-      {
-        kind: "rank",
-        title: label("where the work went"),
-        span: 12,
-        height: Math.max(MIN_PANEL, 34 + items.length * 22),
-        items,
-      },
-    ];
-
-    return "```bigscreen\n" + JSON.stringify({ theme: "dark", columns: 12, panels }) + "\n```";
+/**
+ * useSlow throttles the meter.
+ *
+ * The stream pushes several frames a second, and this block is a string the
+ * renderer reparses whenever it changes — an ECharts option rebuilt sixty
+ * times a minute is both wasted work and a chart that never finishes an
+ * animation. Once a second is faster than anyone reads a bar chart.
+ */
+function useSlow(meter: Meter | null, ms = 1000): Meter | null {
+  const [slow, setSlow] = useState(meter);
+  const latest = useRef(meter);
+  latest.current = meter;
+  useEffect(() => {
+    const t = setInterval(() => setSlow(latest.current), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+  // The first frame should not wait a second to appear.
+  useEffect(() => {
+    setSlow((s) => s ?? latest.current);
   }, [meter]);
+  return slow;
+}
+
+export default function Meters({ meter }: { meter: Meter | null }) {
+  const slow = useSlow(meter);
+
+  const block = useMemo(() => {
+    if (!slow) return null;
+
+    const rows = [
+      { name: "tools", value: slow.calls, color: "#e8b366" },
+      { name: "memory", value: slow.memory, color: "#5fd3e8" },
+      { name: "mcp", value: slow.mcp, color: "#8e9be8" },
+      { name: "shell", value: slow.shells, color: "#b98ee8" },
+      { name: "reads", value: slow.reads, color: "#6fd3a8" },
+      { name: "writes", value: slow.writes, color: "#e88ea8" },
+      { name: "failed", value: slow.fails, color: "#f0687f" },
+    ];
+    // Every column stays, including the empty ones, and the panel stays even
+    // when all of them are. A chart whose categories come and go as work
+    // happens is one whose axis moves under the reader; a panel that vanishes
+    // when the agent goes quiet reads as broken rather than as idle. A flat
+    // axis says "nothing is happening", which is a thing worth saying — and
+    // the window is only a few minutes long, so quiet is the normal state.
+
+    const option = {
+      grid: { left: 6, right: 6, top: 18, bottom: 22, containLabel: true },
+      // Update animation is the point of this panel: the columns grow as the
+      // numbers do rather than being redrawn from zero each time.
+      animationDurationUpdate: 600,
+      animationEasingUpdate: "cubicOut",
+      xAxis: {
+        type: "category",
+        data: rows.map((r) => r.name),
+        axisLabel: { fontSize: 10, color: "#8a9ba3", interval: 0 },
+        axisLine: { lineStyle: { color: "rgba(255,255,255,0.12)" } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: "value",
+        minInterval: 1,
+        axisLabel: { fontSize: 10, color: "#6e7f88" },
+        splitLine: { lineStyle: { color: "rgba(255,255,255,0.06)" } },
+      },
+      series: [
+        {
+          type: "bar",
+          barMaxWidth: 26,
+          data: rows.map((r) => ({ value: r.value, itemStyle: { color: r.color, borderRadius: [2, 2, 0, 0] } })),
+          label: { show: true, position: "top", fontSize: 10, color: "#b9c7ce" },
+        },
+      ],
+    };
+
+    return (
+      "```bigscreen\n" +
+      JSON.stringify({
+        theme: "dark",
+        columns: 12,
+        panels: [{ kind: "chart", title: label("where the work went"), span: 12, height: MIN_PANEL + 80, option }],
+      }) +
+      "\n```"
+    );
+  }, [slow]);
 
   if (!block) return null;
   return (
