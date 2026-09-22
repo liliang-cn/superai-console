@@ -22,6 +22,9 @@ import IOFeed from "./components/IOFeed";
 import Exchange from "./components/Exchange";
 import Gate, { useSession } from "./components/Gate";
 import MemoryGraph, { useGraph } from "./components/MemoryGraph";
+import Meters from "./components/Meters";
+import Divider from "./components/Divider";
+import { useLayout } from "./lib/layout";
 
 // One console.
 //
@@ -96,6 +99,7 @@ function Console() {
   const [feed, setFeed] = useState<Feed>("said");
   const [typed, setTyped] = useState("");
   const graph = useGraph();
+  const { layout, drag, reset } = useLayout();
 
   // The loop, in the order it has to be built: something to send with,
   // something to say it with, and only then the ear — because the ear has to
@@ -312,7 +316,13 @@ function Console() {
           </div>
         </main>
       ) : (
-        <main className="grid min-h-0 flex-1 grid-cols-[500px_1fr_1fr] grid-rows-2">
+        <main
+          className="relative grid min-h-0 flex-1"
+          style={{
+            gridTemplateColumns: `${layout.voice}px minmax(0, ${layout.mid}fr) minmax(0, ${1 - layout.mid}fr)`,
+            gridTemplateRows: `minmax(0, ${layout.top}fr) minmax(0, ${1 - layout.top}fr)`,
+          }}
+        >
           {voicePanel}
           {/* What it knows, over what it just did with it. The graph takes the
               larger share: it is the only thing on this screen that shows
@@ -338,7 +348,14 @@ function Console() {
           {/* Task sits top right and carries the weight: it is the only panel
               about *now*. */}
           <Panel title="TASK" note={counts.task} className="border-b border-rule">
-            <Tasks runs={meter?.runs ?? []} meter={meter} />
+            <div className="flex h-full flex-col">
+              <div className="min-h-0 flex-1">
+                <Tasks runs={meter?.runs ?? []} meter={meter} />
+              </div>
+              <div className="shrink-0 border-t border-rule-soft">
+                <Meters meter={meter} />
+              </div>
+            </div>
           </Panel>
           {/* The conversation takes the bottom middle rather than a corner:
               it is the only panel where the agent speaks in its own words,
@@ -353,6 +370,31 @@ function Console() {
           <Panel title="IN · OUT" note={counts.io}>
             <IOFeed events={meter?.events ?? []} />
           </Panel>
+
+          {/* The seams. Positioned from the same numbers that built the
+              template above, so they sit exactly on the edges without
+              measuring anything. Double-click any of them to put the layout
+              back. */}
+          <div onDoubleClick={reset} className="contents">
+            <Divider
+              axis="x"
+              at={`${layout.voice}px`}
+              onGrab={drag("voice")}
+              title="Resize the voice column · double-click to reset"
+            />
+            <Divider
+              axis="x"
+              at={`calc(${layout.voice}px + (100% - ${layout.voice}px) * ${layout.mid})`}
+              onGrab={drag("mid")}
+              title="Resize the feeds · double-click to reset"
+            />
+            <Divider
+              axis="y"
+              at={`${layout.top * 100}%`}
+              onGrab={drag("top")}
+              title="Resize the rows · double-click to reset"
+            />
+          </div>
         </main>
       )}
     </div>

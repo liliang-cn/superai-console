@@ -1,20 +1,42 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AIRenderer } from "@ai-gui/react";
 import type { Turn } from "../lib/chat";
+import { APP_LOCALE, normalizeOneLineBlocks, plugins, registry } from "../lib/aigui";
 import { Vacant } from "./Panel";
 
 // What was said, and what came back.
 //
 // The other three panels are instrumentation — what the machine did. This one
 // is the conversation, and it is the only place on the page where the agent
-// speaks in its own words. It earns the brightest ink for that reason: a
-// reader scanning this screen should land here first and on the telemetry
-// second.
+// speaks in its own words. It earns the brightest ink for that reason.
+//
+// The answer goes through AIGUI, the same renderer the desktop app uses, so a
+// table is a table and a formula is a formula rather than a fence the reader
+// decodes by eye.
 
-/** A cursor while text is still arriving, so a pause in a stream reads as a
- *  pause rather than as the end of the answer. */
-function Caret() {
+/**
+ * Waiting says how long this turn has been silent.
+ *
+ * It is here because the silence is real and long. The model behind this
+ * console is served by a gateway that buffers: measured against it, nothing
+ * arrives for about seven seconds and then the whole answer lands inside half
+ * a second. There is no streaming to show, so the honest thing is to show the
+ * wait instead of an ambiguous blinking cursor that implies text is trickling
+ * in when none is.
+ */
+function Waiting() {
+  const [since] = useState(() => Date.now());
+  const [now, setNow] = useState(since);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, []);
+  const s = (now - since) / 1000;
   return (
-    <span className="ml-0.5 inline-block h-[0.95em] w-[6px] translate-y-[1px] animate-pulse bg-sig-model align-baseline" />
+    <p className="pl-[18px] text-[13px] text-ink-3">
+      thinking
+      <span className="ml-2 tabular-nums">{s.toFixed(1)}s</span>
+    </p>
   );
 }
 
@@ -65,24 +87,25 @@ export default function Exchange({
               </p>
 
               {t.state === "error" ? (
-                <p className="pl-[18px] text-[13px] leading-[1.6] text-sig-bad">
-                  {t.error}
-                </p>
+                <p className="pl-[18px] text-[13px] leading-[1.6] text-sig-bad">{t.error}</p>
               ) : t.reply ? (
-                <p className="whitespace-pre-wrap pl-[18px] text-[13px] leading-[1.7] text-ink-0">
-                  {t.reply}
-                  {live ? <Caret /> : null}
+                <div className="ai-answer pl-[18px] text-[13px] leading-[1.7] text-ink-0">
+                  <AIRenderer
+                    // Controlled by `text`: handing over the whole string on
+                    // every update lets AIGUI push only the delta, which is
+                    // the shape a growing reply already has.
+                    text={normalizeOneLineBlocks(t.reply)}
+                    registry={registry}
+                    plugins={plugins}
+                    theme="dark"
+                    locale={APP_LOCALE}
+                  />
                   {t.state === "cancelled" ? (
-                    <span className="ml-2 text-[11px] text-ink-3">stopped</span>
+                    <span className="text-[11px] text-ink-3">stopped</span>
                   ) : null}
-                </p>
+                </div>
               ) : live ? (
-                // Sent, nothing back yet. Saying so beats an empty gap that
-                // looks like the message was lost.
-                <p className="pl-[18px] text-[13px] text-ink-3">
-                  thinking
-                  <Caret />
-                </p>
+                <Waiting />
               ) : null}
 
               {t === last && speaking ? (

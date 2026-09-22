@@ -10,6 +10,14 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-gui/core": "^0.36.3",
+    "@ai-gui/plugin-bigscreen": "^0.36.3",
+    "@ai-gui/plugin-chart": "^0.36.3",
+    "@ai-gui/plugin-citation": "^0.36.3",
+    "@ai-gui/plugin-katex": "^0.36.3",
+    "@ai-gui/plugin-mermaid": "^0.36.3",
+    "@ai-gui/plugin-primitives": "^0.36.3",
+    "@ai-gui/react": "^0.36.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.185.1"

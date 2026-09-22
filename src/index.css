@@ -1,5 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
+/* KaTeX ships its own sheet; without it formulae render as stacked spans.
+   The desktop frontend imports the same one for the same reason. */
+@import "@ai-gui/plugin-katex/style.css";
 
 /* A console, not a page.
    ------------------------------------------------------------------
@@ -76,3 +79,59 @@ body {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* AIGUI inside a console.
+   ------------------------------------------------------------------
+   The renderer ships no opinion about size, so an answer would otherwise
+   arrive in the browser's default 16px serif-ish scale next to 13px mono
+   panels. These pull it onto this page's type without touching the plugins'
+   own layout. */
+.ai-answer :where(p, li, td, th) {
+  font-size: 13px;
+  line-height: 1.7;
+}
+.ai-answer :where(h1, h2, h3, h4) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-0);
+  margin: 0.9em 0 0.3em;
+}
+.ai-answer :where(pre, code) {
+  font-size: 12px;
+}
+/* Tailwind's preflight strips every table border, so an answer's table
+   arrives as columns of text jammed together — the data is right and unreadable.
+   These put the grid back without reaching into the plugin's markup. */
+.ai-answer :where(table) {
+  font-size: 12px;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.7em 0;
+}
+.ai-answer :where(th, td) {
+  border: 1px solid var(--color-rule);
+  padding: 4px 8px;
+  text-align: left;
+}
+.ai-answer :where(th) {
+  color: var(--color-ink-2);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.03);
+}
+.ai-answer :where(td) {
+  color: var(--color-ink-1);
+}
+.ai-answer > :first-child { margin-top: 0; }
+.ai-answer > :last-child { margin-bottom: 0; }
+
+/* The telemetry wall is a strip, not a screen: it sits under a live task and
+   must not push it off the panel. */
+.ai-meters :where(.bigscreen, [class*="bigscreen"]) {
+  --bigscreen-pad: 0;
+}
+/* Tall enough for the bar to finish. Bigscreen adds about 136px of its own
+   title and padding around whatever height a panel asks for, so a cap set to
+   the panel height clips the last row — and a clipped bar chart is a lie
+   about the smallest value. The rows of this grid are draggable, so a reader
+   who wants more of the task list above it can simply take it. */
+.ai-meters { max-height: 320px; overflow: hidden; }
