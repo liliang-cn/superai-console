@@ -11,12 +11,16 @@ import {
 } from "./lib/api";
 import { usePhone } from "./lib/room";
 import { useVoice } from "./lib/voice";
+import { useChat } from "./lib/chat";
+import { useSpeaker } from "./lib/speak";
 import VoiceOrb from "./components/VoiceOrb";
 import LevelBar from "./components/LevelBar";
 import Panel from "./components/Panel";
 import MemoryFeed from "./components/MemoryFeed";
 import Tasks from "./components/Tasks";
 import IOFeed from "./components/IOFeed";
+import Exchange from "./components/Exchange";
+import Gate, { useSession } from "./components/Gate";
 
 // One console.
 //
@@ -69,26 +73,52 @@ function useMeter() {
   return { meter, error };
 }
 
-type Feed = "task" | "memory" | "io";
+type Feed = "said" | "task" | "memory" | "io";
 
 export default function App() {
+  const [session, setSession] = useSession();
+  // Nothing below is mounted until there is a session: useMeter opens the
+  // event stream on mount, and an EventSource refused with 401 retries by
+  // itself, forever, several times a second.
+  if (session === "checking") {
+    return <div className="flex h-dvh items-center justify-center bg-black text-[11px] tracking-[0.2em] text-ink-3">…</div>;
+  }
+  if (session === "out") {
+    return <Gate onIn={() => setSession("in")} />;
+  }
+  return <Console />;
+}
+
+function Console() {
   const { meter, error } = useMeter();
   const phone = usePhone();
-  const [feed, setFeed] = useState<Feed>("task");
-  const [sent, setSent] = useState<string[]>([]);
-  const [sending, setSending] = useState(false);
+  const [feed, setFeed] = useState<Feed>("said");
+  const [typed, setTyped] = useState("");
 
-  const say = useCallback(async (text: string) => {
-    setSent((s) => [...s.slice(-8), text]);
-    setSending(true);
-    try {
-      await rpc<string>("SendChat", SESSION, text, null);
-    } finally {
-      setSending(false);
-    }
-  }, []);
-
-  const voice = useVoice(say);
+  // The loop, in the order it has to be built: something to send with,
+  // something to say it with, and only then the ear — because the ear has to
+  // be handed the switch that closes it while the mouth is open.
+  //
+  // Declared before useVoice and read through a ref because the three refer to
+  // each other in a circle: the speaker suspends the voice, the voice's
+  // utterances are sent by the chat, and the chat's answers are spoken. The
+  // ref is where the circle is cut.
+  const voiceRef = useRef<{ suspend: (quiet: boolean) => void } | null>(null);
+  const speaker = useSpeaker((quiet) => voiceRef.current?.suspend(quiet));
+  const chat = useChat(SESSION, (answer) => speaker.say(answer));
+  const voice = useVoice(
+    useCallback(
+      (text: string) => {
+        // Barge-in: speaking over the answer stops it. Without this the only
+        // way to interrupt a long reply is to wait it out, and a console you
+        // cannot interrupt is one you stop talking to.
+        speaker.shut();
+        void chat.send(text);
+      },
+      [chat, speaker],
+    ),
+  );
+  voiceRef.current = voice;
 
   // How hard the agent is working, 0..1, for the orb's colour and spin. Runs
   // in flight is the honest signal: token counts are cumulative and would have
@@ -105,16 +135,27 @@ export default function App() {
     [meter],
   );
 
-  const counts = {
+  const counts: Record<Feed, React.ReactNode> = {
+    said: chat.busy ? <Lit>answering</Lit> : chat.turns.length ? `${chat.turns.length} turns` : "none",
     memory: meter ? `${meter.memory} calls` : undefined,
-    task: meter?.runs.length ? `${meter.runs.length} in flight` : sending ? "sending" : "none",
+    task: meter?.runs.length ? `${meter.runs.length} in flight` : chat.busy ? "sending" : "none",
     io: meter ? `${meter.tokens.toLocaleString()} tokens · ${meter.calls} calls` : undefined,
   };
 
   const voicePanel = (
     <Panel
       title="VOICE"
-      note={voice.listening ? <Lit>listening</Lit> : voice.canTranscribe ? "closed" : "no transcription"}
+      note={
+        speaker.speaking ? (
+          <Lit>speaking</Lit>
+        ) : voice.listening ? (
+          <Lit>listening</Lit>
+        ) : voice.canTranscribe ? (
+          "closed"
+        ) : (
+          "no transcription"
+        )
+      }
       // h-full matters on a phone: there the panel is put inside a sized box
       // rather than a grid cell, and without it it shrinks to its content —
       // the orb's flex-1 then has no height to claim and the canvas spills
@@ -136,8 +177,8 @@ export default function App() {
           <p className="min-h-[42px] text-[13px] leading-[1.6]">
             {voice.partial ? (
               <span className="text-ink-3">{voice.partial}</span>
-            ) : sent.length ? (
-              <span className="text-ink-0">{sent[sent.length - 1]}</span>
+            ) : chat.turns.length ? (
+              <span className="text-ink-0">{chat.turns[chat.turns.length - 1].said}</span>
             ) : (
               <span className="text-ink-3">
                 Press listen, then speak. What is heard goes to SuperAI as a message.
@@ -145,6 +186,30 @@ export default function App() {
             )}
           </p>
           {voice.error ? <p className="text-[11px] text-sig-bad">{voice.error}</p> : null}
+          {/* The keyboard way in.
+              Not a fallback bolted on: speech recognition is Chrome-only and
+              the microphone needs HTTPS or localhost, so on every other
+              browser and on any box reached by IP this is the only way to say
+              anything at all. It sends down the identical path a spoken
+              sentence does, so nothing downstream has two cases to handle. */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const text = typed.trim();
+              if (!text) return;
+              setTyped("");
+              speaker.shut();
+              void chat.send(text);
+            }}
+          >
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="or type a message"
+              aria-label="Message SuperAI"
+              className="h-[42px] w-full border border-white/12 bg-transparent px-3 text-[13px] text-ink-0 placeholder:text-ink-3 focus:border-sig-model/50 focus:outline-none"
+            />
+          </form>
           <button
             type="button"
             onClick={voice.listening ? voice.stop : voice.start}
@@ -186,6 +251,7 @@ export default function App() {
           <nav className="flex shrink-0 border-b border-rule" aria-label="Feed">
             {(
               [
+                ["said", "SAID"],
                 ["task", "TASK"],
                 ["memory", "MEMORY"],
                 ["io", "IN · OUT"],
@@ -208,11 +274,21 @@ export default function App() {
           </nav>
           <div className="min-h-0 flex-1">
             <Panel
-              title={feed === "task" ? "TASK" : feed === "memory" ? "MEMORY" : "IN · OUT"}
+              title={
+                feed === "said"
+                  ? "EXCHANGE"
+                  : feed === "task"
+                    ? "TASK"
+                    : feed === "memory"
+                      ? "MEMORY"
+                      : "IN · OUT"
+              }
               note={counts[feed]}
               className="h-full"
             >
-              {feed === "task" ? (
+              {feed === "said" ? (
+                <Exchange turns={chat.turns} speaking={speaker.speaking} />
+              ) : feed === "task" ? (
                 <Tasks runs={meter?.runs ?? []} meter={meter} />
               ) : feed === "memory" ? (
                 <MemoryFeed events={memories} />
@@ -233,7 +309,17 @@ export default function App() {
           <Panel title="TASK" note={counts.task} className="border-b border-rule">
             <Tasks runs={meter?.runs ?? []} meter={meter} />
           </Panel>
-          <Panel title="IN · OUT" note={counts.io} className="col-span-2">
+          {/* The conversation takes the bottom middle rather than a corner:
+              it is the only panel where the agent speaks in its own words,
+              and the telemetry beside it is what it did to get there. */}
+          <Panel
+            title="EXCHANGE"
+            note={chat.busy ? <Lit>answering</Lit> : chat.turns.length ? `${chat.turns.length} turns` : undefined}
+            className="border-r border-rule"
+          >
+            <Exchange turns={chat.turns} speaking={speaker.speaking} />
+          </Panel>
+          <Panel title="IN · OUT" note={counts.io}>
             <IOFeed events={meter?.events ?? []} />
           </Panel>
         </main>

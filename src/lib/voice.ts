@@ -27,6 +27,17 @@ export type VoiceState = {
   canTranscribe: boolean;
   start: () => void;
   stop: () => void;
+  /**
+   * Stop turning sound into words for a moment, without closing the
+   * microphone.
+   *
+   * This is what keeps the console from talking to itself: while an answer is
+   * being read aloud the recogniser would otherwise hear it and send it back
+   * as something the user said. The microphone deliberately stays open —
+   * the level still drives the shape, so the orb keeps moving while SuperAI
+   * speaks instead of dying for the length of every answer.
+   */
+  suspend: (quiet: boolean) => void;
 };
 
 type SpeechRecognitionLike = {
@@ -64,6 +75,10 @@ export function useVoice(onUtterance: (text: string) => void): VoiceState {
   const ctxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef(0);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
+  // Read inside the recogniser's handlers, which are installed once per
+  // session; state would be captured stale there and every answer would be
+  // heard back exactly once.
+  const deafRef = useRef(false);
   // The callback changes on every render of the parent; the recogniser is set
   // up once. Reading it through a ref keeps the subscription stable.
   const sayRef = useRef(onUtterance);
@@ -128,6 +143,8 @@ export function useVoice(onUtterance: (text: string) => void): VoiceState {
       rec.continuous = true;
       rec.interimResults = true;
       rec.onresult = (e: any) => {
+        // Suspended: the sound in the room is this console's own voice.
+        if (deafRef.current) return;
         let interim = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const r = e.results[i];
@@ -166,6 +183,15 @@ export function useVoice(onUtterance: (text: string) => void): VoiceState {
     }
   }, [stop]);
 
+  const suspend = useCallback((quiet: boolean) => {
+    deafRef.current = quiet;
+    // Only the transcript is dropped, not the audio: stopping the recogniser
+    // here would fire onend, which restarts it, and the restart is what a
+    // half-spoken word arrives during. Ignoring results is both simpler and
+    // the thing that actually holds.
+    if (quiet) setPartial("");
+  }, []);
+
   useEffect(() => stop, [stop]);
 
   return {
@@ -176,5 +202,6 @@ export function useVoice(onUtterance: (text: string) => void): VoiceState {
     canTranscribe,
     start: () => void start(),
     stop,
+    suspend,
   };
 }

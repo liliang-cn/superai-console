@@ -34,6 +34,15 @@ export default defineConfig(({ mode }) => {
           selfHandleResponse: false,
           configure: (proxy) => {
             proxy.on("proxyReq", (proxyReq) => {
+              // A token here is a development shortcut and nothing more: it
+              // signs every request in, so the sign-in screen is never
+              // exercised and dev stops resembling what is deployed. Leave
+              // SUPERAI_TOKEN unset — which is the default — and log in with
+              // the password exactly as the deployed console does.
+              //
+              // It must never be done in front of a public hostname. The
+              // agent behind it runs shell commands, and a proxy that signs
+              // every caller in is that agent with no door at all.
               if (token) proxyReq.setHeader("Authorization", `Bearer ${token}`);
               // Ask for no compression: a gzip stream is buffered in chunks
               // large enough to hide several seconds of events.
