@@ -66,24 +66,54 @@ export function plainForSpeech(md: string): string {
   t = t.replace(/!\[[^\]]*\]\([^)]*\)/g, " ");   // images: nothing to say
   t = t.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1"); // links: the text, not the url
   t = t.replace(/`([^`]*)`/g, "$1");            // inline code: keep the word
-  t = t
-    .split("\n")
-    .map((line) => {
-      let l = line;
-      // A table row becomes its cells, comma separated; the |---|---| rule
-      // under the header has nothing in it to say.
-      if (/^\s*\|/.test(l)) {
-        if (/^[\s|:-]+$/.test(l)) return "";
-        return l.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim()).filter(Boolean).join("，") + "。";
+  // Lines, but tables in groups: a table read row by row is the reason this
+  // function was not enough on its own. "会议主题，沟通渠道。" followed by
+  // "项目周同步，Slack。" is two sentences with no relation to each other —
+  // the header names the columns and the row holds the values, and a listener
+  // has no column to look up at. Pairing them turns a table into sentences:
+  // "会议主题：项目周同步。沟通渠道：Slack。"
+  const lines = t.split("\n");
+  const out: string[] = [];
+  const cells = (l: string) =>
+    l
+      .replace(/^\s*\|/, "")
+      .replace(/\|\s*$/, "")
+      .split("|")
+      .map((c) => c.trim());
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^\s*\|/.test(l)) {
+      const header = cells(l);
+      // A table is a header, a rule, then rows. Without the rule it is not a
+      // table — just a line with pipes in it, which is read as it stands.
+      if (i + 1 < lines.length && /^[\s|:-]+$/.test(lines[i + 1]) && lines[i + 1].includes("|")) {
+        i++;
+        while (i + 1 < lines.length && /^\s*\|/.test(lines[i + 1])) {
+          const row = cells(lines[++i]);
+          const said = row
+            .map((v, k) => {
+              const h = header[k] ?? "";
+              if (!v) return "";
+              return h ? `${h}：${v}` : v;
+            })
+            .filter(Boolean)
+            .join("，");
+          if (said) out.push(said + "。");
+        }
+        continue;
       }
-      if (/^\s*([-*_]\s*){3,}$/.test(l)) return ""; // horizontal rule
-      l = l.replace(/^\s{0,3}#{1,6}\s+/, "");       // heading marks
-      l = l.replace(/^\s{0,3}>\s?/, "");            // blockquote
-      l = l.replace(/^\s*[-*+]\s+/, "");            // bullet
-      l = l.replace(/^\s*\d+[.)]\s+/, "");          // "1." — a full stop to the splitter
-      return l;
-    })
-    .join("\n");
+      out.push(header.filter(Boolean).join("，") + "。");
+      continue;
+    }
+    if (/^\s*([-*_]\s*){3,}$/.test(l)) continue; // horizontal rule
+    let x = l;
+    x = x.replace(/^\s{0,3}#{1,6}\s+/, ""); // heading marks
+    x = x.replace(/^\s{0,3}>\s?/, ""); // blockquote
+    x = x.replace(/^\s*[-*+]\s+/, ""); // bullet
+    x = x.replace(/^\s*\d+[.)]\s+/, ""); // "1." — a full stop to the splitter
+    out.push(x);
+  }
+  t = out.join("\n");
   t = t.replace(/\*\*([^*]+)\*\*/g, "$1"); // bold
   t = t.replace(/(^|\W)\*([^*\n]+)\*/g, "$1$2"); // italic, but not a bare *
   t = t.replace(/(^|\W)_([^_\n]+)_/g, "$1$2");
@@ -165,14 +195,38 @@ export function useSpeaker(suspend: (quiet: boolean) => void): Speaker {
     suspendRef.current(false);
   }, [canBrowser]);
 
-  /** The browser's own voice. Instant, worse, and always there. */
-  const browserSay = useCallback((text: string) => {
-    if (!canBrowser) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = navigator.language || "zh-CN";
-    u.rate = 1.05;
-    window.speechSynthesis.speak(u);
-  }, [canBrowser]);
+  /**
+   * The browser's own voice. Instant, worse, and always there.
+   *
+   * Resolves when it has actually finished. The first version fired the
+   * utterance and then waited a guessed 40ms per character — Chinese speech
+   * runs nearer 250ms, so the guess was six times short and the next
+   * sentence's audio started while this one was still talking. Two voices at
+   * once is what "乱七八糟" sounded like.
+   */
+  const browserSay = useCallback(
+    (text: string) =>
+      new Promise<void>((done) => {
+        if (!canBrowser) return done();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = navigator.language || "zh-CN";
+        u.rate = 1.05;
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          done();
+        };
+        u.onend = finish;
+        u.onerror = finish;
+        // speechSynthesis drops utterances on the floor often enough that a
+        // queue waiting only on onend can stall forever. The ceiling is
+        // generous — longer than the sentence could possibly take.
+        window.setTimeout(finish, 1000 + [...text].length * 400);
+        window.speechSynthesis.speak(u);
+      }),
+    [canBrowser],
+  );
 
   const say = useCallback(
     (text: string) => {
@@ -247,9 +301,9 @@ export function useSpeaker(suspend: (quiet: boolean) => void): Speaker {
           } else {
             // No backend voice for this piece. Say it in the browser's, and
             // keep going — half an answer read aloud is worse than all of it
-            // in a plainer voice.
-            browserSay(pieces[i]);
-            await new Promise((r) => setTimeout(r, 40 * [...pieces[i]].length));
+            // in a plainer voice. Awaited, so the next piece does not start
+            // over the top of this one.
+            await browserSay(pieces[i]);
           }
           if (run !== runRef.current) return;
         }
