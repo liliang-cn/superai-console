@@ -317,6 +317,7 @@ function Console() {
         </main>
       ) : (
         <main
+          data-grid
           className="relative grid min-h-0 flex-1"
           style={{
             gridTemplateColumns: `${layout.voice}px minmax(0, ${layout.mid}fr) minmax(0, ${1 - layout.mid}fr)`,
@@ -375,26 +376,27 @@ function Console() {
               template above, so they sit exactly on the edges without
               measuring anything. Double-click any of them to put the layout
               back. */}
-          <div onDoubleClick={reset} className="contents">
-            <Divider
+          <Divider
               axis="x"
               at={`${layout.voice}px`}
               onGrab={drag("voice")}
+              onReset={reset}
               title="Resize the voice column · double-click to reset"
             />
             <Divider
               axis="x"
               at={`calc(${layout.voice}px + (100% - ${layout.voice}px) * ${layout.mid})`}
               onGrab={drag("mid")}
+              onReset={reset}
               title="Resize the feeds · double-click to reset"
             />
             <Divider
               axis="y"
               at={`${layout.top * 100}%`}
               onGrab={drag("top")}
+              onReset={reset}
               title="Resize the rows · double-click to reset"
             />
-          </div>
         </main>
       )}
     </div>

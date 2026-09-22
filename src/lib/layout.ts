@@ -82,9 +82,18 @@ export function useLayout() {
   const drag = useCallback(
     (which: keyof Layout) => (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
-      const host = e.currentTarget.parentElement;
+      // The grid is found by name, not by walking up one level. parentElement
+      // was whatever happened to wrap the handle, and when that was a
+      // `display: contents` div it generated no box at all — so every
+      // measurement below came back zero. That failed silently and
+      // differently per axis: the middle seam computed a negative remainder
+      // and returned early, doing nothing; the horizontal one divided by a
+      // zero height, got Infinity, and snapped to the clamp on the first
+      // pixel of movement.
+      const host = e.currentTarget.closest<HTMLElement>("[data-grid]");
       if (!host) return;
       const rect = host.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
       e.currentTarget.setPointerCapture(e.pointerId);
 
       const move = (ev: PointerEvent) => {

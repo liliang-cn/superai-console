@@ -12,12 +12,14 @@ export default function Divider({
   axis,
   at,
   onGrab,
+  onReset,
   title,
 }: {
   axis: "x" | "y";
   /** A CSS length for the seam: left for x, top for y. */
   at: string;
   onGrab: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onReset: () => void;
   title: string;
 }) {
   const vertical = axis === "x";
@@ -28,6 +30,7 @@ export default function Divider({
       aria-label={title}
       title={title}
       onPointerDown={onGrab}
+      onDoubleClick={onReset}
       className={
         vertical
           ? "group absolute top-0 bottom-0 z-20 w-[9px] -translate-x-1/2 cursor-col-resize touch-none"
