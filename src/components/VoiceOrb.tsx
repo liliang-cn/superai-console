@@ -124,10 +124,20 @@ export default function VoiceOrb({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.z = 3.1;
+    // Distance is set from the aspect in resize(), not fixed here: the panel
+    // this sits in is taller than it is wide, and a camera placed for a square
+    // cuts the sphere off at both sides.
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // setSize's third argument is `updateStyle`, and resize() passes false so
+    // the drawing buffer can be sized independently of the layout. That means
+    // nothing sets the element's CSS size, and a canvas with none lays out at
+    // its buffer's pixel count — which overflows its container. These two
+    // lines are what keep it inside the panel.
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.display = "block";
     host.appendChild(renderer.domElement);
 
     const uniforms = {
@@ -166,11 +176,21 @@ export default function VoiceOrb({
     );
     scene.add(cage);
 
+    // The widest the mesh gets: radius 1, plus the displacement ceiling, plus
+    // the cage outside it, plus a margin so the rim glow is not clipped.
+    const REACH = 1.45;
+    const HALF_FOV = Math.tan((45 / 2) * (Math.PI / 180));
+
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = host;
       if (!w || !h) return;
       renderer.setSize(w, h, false);
-      camera.aspect = w / h;
+      const aspect = w / h;
+      camera.aspect = aspect;
+      // Fit the smaller dimension: vertically the half-angle is HALF_FOV, and
+      // horizontally it is HALF_FOV * aspect, so a portrait panel needs the
+      // camera further back than a square one.
+      camera.position.z = REACH / (HALF_FOV * Math.min(1, aspect));
       camera.updateProjectionMatrix();
     };
     const ro = new ResizeObserver(resize);

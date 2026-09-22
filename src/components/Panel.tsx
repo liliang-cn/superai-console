@@ -19,16 +19,19 @@ export default function Panel({
   className?: string;
 }) {
   return (
-    <section
-      className={`relative flex min-h-0 flex-col border border-white/8 bg-white/[0.015] ${className}`}
-    >
-      <header className="flex shrink-0 items-baseline justify-between gap-3 px-3 py-2">
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/40">
-          {title}
-        </h2>
-        {note ? <div className="font-mono text-[10px] text-white/30">{note}</div> : null}
+    <section className={`relative flex min-h-0 flex-col bg-black ${className}`}>
+      <header className="flex h-[34px] shrink-0 items-center justify-between gap-3 px-4">
+        <h2 className="text-[10px] font-semibold tracking-[0.2em] text-ink-2">{title}</h2>
+        {note ? <div className="text-[10px] text-ink-3">{note}</div> : null}
       </header>
       <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
     </section>
+  );
+}
+
+/** The empty state of a feed. Says what will appear, not that nothing has. */
+export function Vacant({ children }: { children: ReactNode }) {
+  return (
+    <p className="max-w-[46ch] px-4 pb-4 text-xs leading-[1.7] text-ink-3">{children}</p>
   );
 }

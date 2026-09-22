@@ -1,13 +1,15 @@
 import { useEffect, useRef } from "react";
 import type { PulseEvent } from "../lib/api";
+import { Vacant } from "./Panel";
 
 // What the brain just did.
 //
 // Every memory tool the agent called, newest last, with how long it took. The
 // point of a separate panel rather than a filter on the main feed is that
-// these are the events you cannot see any other way: a recall that found
-// nothing looks exactly like no recall at all in the transcript, and a
-// remember that fired is invisible until you go looking in the store.
+// these are the events you cannot see any other way: a remember that fired is
+// invisible until you go looking in the store, and a widening query — city,
+// then address, then home — is the agent not finding it the first time, which
+// no transcript records.
 
 /** Shortens memory_search -> search, knowledge_memory_recall -> recall. The
  *  prefixes are all the same and the suffix is the verb. */
@@ -16,11 +18,15 @@ function verb(name: string): string {
   return parts.length > 1 ? parts.slice(-1)[0] : name;
 }
 
-function tone(name: string): string {
+/** Reads are one colour and writes another, because the two are not the same
+ *  event: one is the agent consulting itself, the other is it changing what it
+ *  will believe tomorrow. */
+function tone(name: string, bad?: boolean): string {
+  if (bad) return "text-sig-bad";
   const n = name.toLowerCase();
-  if (n.includes("remember") || n.includes("save") || n.includes("upsert")) return "text-amber-300/80";
-  if (n.includes("recall") || n.includes("search") || n.includes("query")) return "text-cyan-300/80";
-  return "text-white/55";
+  if (n.includes("remember") || n.includes("save") || n.includes("upsert") || n.includes("write"))
+    return "text-sig-tool";
+  return "text-sig-model";
 }
 
 export default function MemoryFeed({ events }: { events: PulseEvent[] }) {
@@ -39,35 +45,34 @@ export default function MemoryFeed({ events }: { events: PulseEvent[] }) {
 
   if (events.length === 0) {
     return (
-      <p className="px-3 pb-3 font-mono text-[11px] leading-relaxed text-white/25">
-        Nothing yet. Every recall, search and remember the agent makes shows up here
-        as it happens.
-      </p>
+      <Vacant>
+        Nothing yet. Every recall, search and remember shows up here as it happens —
+        reads in cyan, writes in amber.
+      </Vacant>
     );
   }
 
   return (
-    <div ref={boxRef} className="h-full overflow-y-auto px-3 pb-3">
-      <ol className="space-y-[3px] font-mono text-[11px]">
+    <div ref={boxRef} className="h-full overflow-y-auto px-4 pb-4">
+      <ol className="space-y-[5px] text-xs">
         {events.map((e) => (
-          <li key={e.seq} className="flex items-baseline gap-2 tabular-nums">
-            <span className="w-[52px] shrink-0 text-white/20">
-              {e.at.slice(11, 19)}
-            </span>
-            <span className={`truncate ${tone(e.name)}`} title={e.name}>
+          <li key={e.seq} className="flex items-baseline gap-2.5">
+            <span className="w-[56px] shrink-0 text-ink-3">{e.at.slice(11, 19)}</span>
+            <span className={`shrink-0 ${tone(e.name, e.bad)}`} title={e.name}>
               {verb(e.name)}
             </span>
             {e.text ? (
-              <span className="min-w-0 flex-1 truncate text-white/30" title={e.text}>
+              <span className="min-w-0 flex-1 truncate text-ink-2" title={e.text}>
                 {e.text}
               </span>
             ) : (
               <span className="flex-1" />
             )}
-            {e.ms ? (
-              <span className="shrink-0 text-white/25">{e.ms}ms</span>
+            {e.bad ? (
+              <span className="shrink-0 text-sig-bad">failed</span>
+            ) : e.ms ? (
+              <span className="shrink-0 text-ink-3">{e.ms}ms</span>
             ) : null}
-            {e.bad ? <span className="shrink-0 text-rose-400/80">failed</span> : null}
           </li>
         ))}
       </ol>

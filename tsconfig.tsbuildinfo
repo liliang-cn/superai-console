@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/iofeed.tsx","./src/components/levelbar.tsx","./src/components/memoryfeed.tsx","./src/components/panel.tsx","./src/components/tasks.tsx","./src/components/voiceorb.tsx","./src/lib/api.ts","./src/lib/room.ts","./src/lib/voice.ts","./vite.config.ts"],"version":"5.9.3"}
