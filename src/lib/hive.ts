@@ -93,6 +93,48 @@ export function useHive() {
     });
   }, []);
 
+  // Development only: window.__hiveDemo() plays made-up traffic over whoever is
+  // in the hive, so a look can be judged without waiting minutes on a model.
+  // Not in a production build at all.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __hiveDemo?: () => void }).__hiveDemo = () => {
+      const names = (status?.members ?? []).map((m) => m.name);
+      if (!names.length) return;
+      const tools = ["bash", "read_file", "kubectl", "web_search", "memory_recall"];
+      names.slice(0, Math.min(5, names.length)).forEach((w, i) => {
+        const id = `demo-${Date.now()}-${i}`;
+        const started = new Date().toISOString();
+        const base = { id, worker: w, dir: "out" as const, prompt: "demo order", tools: 0, started_at: started };
+        const put = (t: HiveTask) =>
+          setTasks((cur) => {
+            const k = cur.findIndex((x) => x.id === t.id);
+            if (k < 0) return [...cur, t];
+            const next = cur.slice();
+            next[k] = t;
+            return next;
+          });
+        window.setTimeout(() => put({ ...base, state: "running", phase: "thinking" }), i * 700);
+        for (let n = 1; n <= 3; n++) {
+          window.setTimeout(() => {
+            const tool = tools[(i + n) % tools.length];
+            put({ ...base, state: "running", phase: "tool", tool, tools: n });
+            stage.current?.pulse({ task: id, worker: w, dir: "out", kind: "tool", tool });
+            window.setTimeout(() => stage.current?.pulse({ task: id, worker: w, dir: "out", kind: "result", bytes: 2000 }), 900);
+          }, i * 700 + n * 2200);
+        }
+        window.setTimeout(() => put({ ...base, state: "done", tools: 3 }), i * 700 + 9000);
+      });
+      if (names.length > 3) {
+        const id = `demo-peer-${Date.now()}`;
+        const t: HiveTask = { id, worker: names[1], from: names[3], dir: "peer", prompt: "demo question", state: "running", tools: 0, started_at: new Date().toISOString() };
+        window.setTimeout(() => setTasks((cur) => [...cur, t]), 1500);
+        window.setTimeout(() => stage.current?.pulse({ task: id, worker: names[1], from: names[3], dir: "peer", kind: "tool", tool: "uptime" }), 4000);
+        window.setTimeout(() => setTasks((cur) => cur.map((x) => (x.id === id ? { ...x, state: "done" } : x))), 7500);
+      }
+    };
+  }, [status]);
+
   const role = status?.role ?? "";
   return { status, tasks, ready, stage, role, active: role !== "" };
 }

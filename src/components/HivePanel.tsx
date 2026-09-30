@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import HiveStageView from "./HiveStageView";
 import type { useHive } from "../lib/hive";
 import { Vacant } from "./Panel";
@@ -16,8 +16,55 @@ function span(ms: number): string {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
+const SPLIT_KEY = "console.hive.split";
+
+/** How much of the panel the stage takes, dragged by the seam under it and kept
+ *  in this browser. Clamped so neither half can be dragged away entirely: a
+ *  half that is gone takes its handle with it. */
+function useSplit() {
+  const [split, setSplit] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem(SPLIT_KEY));
+      return v >= 0.2 && v <= 0.88 ? v : 0.6;
+    } catch {
+      return 0.6;
+    }
+  });
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(SPLIT_KEY, String(split));
+      } catch {
+        /* not worth failing over */
+      }
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [split]);
+  return [split, setSplit] as const;
+}
+
 export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }) {
   const { status, tasks, ready, stage } = hive;
+  const [split, setSplit] = useSplit();
+  const host = useRef<HTMLDivElement>(null);
+  const grab = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const box = host.current?.getBoundingClientRect();
+    if (!box || box.height <= 0) return;
+    // Captured once: React clears currentTarget when the handler returns.
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => setSplit(Math.min(0.88, Math.max(0.2, (ev.clientY - box.top) / box.height)));
+    const up = (ev: PointerEvent) => {
+      el.releasePointerCapture?.(ev.pointerId);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+  };
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 1000);
@@ -37,8 +84,8 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
   const running = tasks.filter((t) => t.state === "running").length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-[3]">
+    <div className="flex h-full min-h-0 flex-col" ref={host}>
+      <div className="min-h-0 shrink-0" style={{ height: `${split * 100}%` }}>
         <HiveStageView
           ref={stage}
           role={status.role}
@@ -47,6 +94,19 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
           tasks={tasks}
           ready={ready}
         />
+      </div>
+      {/* The seam: drag to give the stage or the list more room, double-click
+          to put it back. */}
+      <div
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize the hive stage"
+        title="Drag to resize · double-click to reset"
+        onPointerDown={grab}
+        onDoubleClick={() => setSplit(0.6)}
+        className="group relative z-10 h-[7px] shrink-0 -my-[3px] cursor-row-resize touch-none"
+      >
+        <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-transparent transition-colors group-hover:bg-sig-model/50" />
       </div>
       <div className="flex shrink-0 items-center gap-3 border-t border-rule-soft px-4 py-1.5 text-[10px] tracking-[0.12em] text-ink-3">
         <span className="font-semibold text-sig-model">{status.role.toUpperCase()}</span>
@@ -62,7 +122,7 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
         <span className="flex-1" />
         {running > 0 ? <span className="text-sig-model">{running} running</span> : null}
       </div>
-      <ul className="min-h-0 flex-[2] overflow-y-auto border-t border-rule-soft">
+      <ul className="min-h-0 flex-1 overflow-y-auto border-t border-rule-soft">
         {ordered.length === 0 ? (
           <li>
             <Vacant>
