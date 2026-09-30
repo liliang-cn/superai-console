@@ -31,7 +31,7 @@ export default function LevelBar({ level, on }: { level: () => number; on: boole
 
   return (
     <div
-      className="h-[2px] w-[280px] max-w-full bg-white/10"
+      className="h-[2px] w-[280px] max-w-full bg-line"
       role="meter"
       aria-label="Microphone level"
     >

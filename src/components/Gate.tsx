@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import ThemeToggle from "./ThemeToggle";
+import { Decode } from "./Motion";
 
 // The door.
 //
@@ -73,11 +75,14 @@ export default function Gate({ onIn }: { onIn: () => void }) {
   };
 
   return (
-    <div className="flex h-dvh items-center justify-center bg-black px-6">
+    <div className="console-ground flex h-dvh items-center justify-center px-6">
+      <div className="absolute right-4 top-3">
+        <ThemeToggle />
+      </div>
       <form onSubmit={submit} className="w-full max-w-[320px] space-y-5">
         <div className="space-y-1.5">
-          <div className="text-xs font-semibold tracking-[0.34em] text-ink-0">SUPERAI</div>
-          <div className="text-[10px] font-medium tracking-[0.26em] text-ink-3">CONSOLE</div>
+          <Decode text="SUPERAI" step={60} className="block text-xs font-semibold tracking-[0.34em] text-ink-0" />
+          <Decode text="CONSOLE" delay={380} step={45} className="block text-[10px] font-medium tracking-[0.26em] text-ink-3" />
         </div>
         <input
           type="password"
@@ -86,13 +91,13 @@ export default function Gate({ onIn }: { onIn: () => void }) {
           placeholder="password"
           aria-label="Password"
           autoFocus
-          className="h-[46px] w-full border border-white/12 bg-transparent px-3 text-[13px] text-ink-0 placeholder:text-ink-3 focus:border-sig-model/50 focus:outline-none"
+          className="h-[46px] w-full border border-line bg-transparent px-3 text-[13px] text-ink-0 placeholder:text-ink-3 focus:border-sig-model/50 focus:outline-none"
         />
         {error ? <p className="text-[11px] leading-[1.6] text-sig-bad">{error}</p> : null}
         <button
           type="submit"
           disabled={busy || !password}
-          className="h-[46px] w-full border border-white/20 text-[11px] font-medium tracking-[0.22em] text-ink-1 transition-colors hover:border-white/35 hover:text-ink-0 disabled:opacity-40"
+          className="h-[46px] w-full border border-line-strong text-[11px] font-medium tracking-[0.22em] text-ink-1 transition-colors hover:border-ink-3 hover:text-ink-0 disabled:opacity-40"
         >
           {busy ? "…" : "ENTER"}
         </button>

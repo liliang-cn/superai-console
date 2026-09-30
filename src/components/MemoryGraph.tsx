@@ -63,7 +63,7 @@ export default function MemoryGraph({ graph }: { graph: GraphStatus | null }) {
         // page so the frame has no visible edge.
         src="/graph/?panels=0&spin=4&bg=000000"
         title="CortexDB knowledge graph"
-        className="h-full w-full border-0"
+        className="h-full w-full border-0 transition-[filter] duration-500 [:root[data-theme=light]_&]:[filter:invert(0.9)_hue-rotate(180deg)_saturate(1.5)_brightness(1.02)]"
       />
       {/* Sits over the frame rather than under it: the graph fills its box, and
           a row beneath would cost height the picture needs more. */}

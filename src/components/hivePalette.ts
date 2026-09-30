@@ -7,20 +7,22 @@
 export function palette() {
   const css = getComputedStyle(document.documentElement);
   const v = (n: string, d: string) => css.getPropertyValue(n).trim() || d;
+  const light = document.documentElement.dataset.theme === "light";
   return {
-    light: false,
+    light,
     accent: v("--color-sig-model", "#5fd3e8"),
     green: v("--color-orb-hot", "#7fe3d0"),
     red: v("--color-sig-bad", "#f0687f"),
     amber: v("--color-sig-tool", "#e8b366"),
     // Messages between members. None of the five signals means "a note passed
     // along", so this one is its own.
-    mail: "#b18cff",
+    mail: v("--color-mail", "#b18cff"),
     dim: v("--color-ink-2", "#8a9ba3"),
     text: v("--color-ink-0", "#e6edf0"),
     border: v("--color-rule", "rgba(255,255,255,0.1)"),
-    panel: "#000000",
-    glow: 1,
+    panel: v("--color-ground", "#000000"),
+    // Halos read as light on a dark ground and as smudges on a light one.
+    glow: light ? 0.35 : 1,
   };
 }
 export type Palette = ReturnType<typeof palette>;

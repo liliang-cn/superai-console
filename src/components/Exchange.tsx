@@ -3,6 +3,7 @@ import { AIRenderer } from "@ai-gui/react";
 import type { Turn } from "../lib/chat";
 import { APP_LOCALE, normalizeOneLineBlocks, plugins, registry } from "../lib/aigui";
 import { Vacant } from "./Panel";
+import { useThemeValue } from "../lib/theme";
 
 // What was said, and what came back.
 //
@@ -40,10 +41,18 @@ function Waiting() {
   );
 }
 
-export default function Exchange({
+export default function Exchange(props: Parameters<typeof ExchangeBody>[0]) {
+  // Answers are rendered in the page's theme, so a table or chart in one
+  // follows a switch like everything else.
+  return <ExchangeBody {...props} theme={useThemeValue()} />;
+}
+
+function ExchangeBody({
   turns,
   speaking,
+  theme = "dark",
 }: {
+  theme?: "dark" | "light";
   turns: Turn[];
   /** True while this answer is being read aloud, which is worth marking: it
    *  is why the microphone is ignoring you for a moment. */
@@ -76,7 +85,7 @@ export default function Exchange({
         {turns.map((t, i) => {
           const live = t.state === "streaming" || t.state === "sending";
           return (
-            <li key={t.id || `pending-${i}`} className="space-y-1.5">
+            <li key={t.id || `pending-${i}`} className="arrive space-y-1.5">
               {/* Heard. Dimmer than the answer and marked, because the one
                   thing worth checking at a glance is whether it heard you
                   correctly — and that is easiest when it does not compete
@@ -97,7 +106,7 @@ export default function Exchange({
                     text={normalizeOneLineBlocks(t.reply)}
                     registry={registry}
                     plugins={plugins}
-                    theme="dark"
+                    theme={theme}
                     locale={APP_LOCALE}
                   />
                   {t.state === "cancelled" ? (

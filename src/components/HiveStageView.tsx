@@ -2,6 +2,7 @@ import { forwardRef, lazy, Suspense, useImperativeHandle, useRef, useState } fro
 import HiveStage, { type Look as FlowLook } from "./HiveStage";
 import HiveHex from "./HiveHex";
 import type { StageHandle, StageProps } from "./hiveFx";
+import { useThemeValue } from "../lib/theme";
 
 // The hive stage, in whichever look and dimension the viewer picked.
 //
@@ -60,6 +61,7 @@ function initial(can3d: boolean): Choice {
 }
 
 const HiveStageView = forwardRef<StageHandle, StageProps>(function HiveStageView(props, ref) {
+  const theme = useThemeValue();
   const can3d = webgl();
   const [choice, setChoice] = useState<Choice>(() => initial(can3d));
   const child = useRef<StageHandle>(null);
@@ -81,10 +83,12 @@ const HiveStageView = forwardRef<StageHandle, StageProps>(function HiveStageView
       {choice.dim === "3d" ? (
         <Suspense fallback={null}>
           {/* Keyed by look so a switch builds the new scene from scratch. */}
+          {/* And by theme: a scene reads its colours and blending when it is
+              built, so a new theme is a new scene. */}
           {choice.look === "hex" ? (
-            <HiveHex3D ref={child} {...props} />
+            <HiveHex3D key={theme} ref={child} {...props} />
           ) : (
-            <HiveStage3D key={choice.look} ref={child} look={choice.look} {...props} />
+            <HiveStage3D key={`${choice.look}-${theme}`} ref={child} look={choice.look} {...props} />
           )}
         </Suspense>
       ) : (

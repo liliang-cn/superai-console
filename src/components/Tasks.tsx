@@ -69,7 +69,7 @@ export default function Tasks({ runs, meter }: { runs: PulseRun[]; meter: Meter 
     <div className="h-full overflow-y-auto px-4 pb-4">
       <ul className="space-y-5">
         {runs.map((r) => (
-          <li key={r.runId} className="border-l-2 border-sig-model pl-3.5">
+          <li key={r.runId} className="arrive border-l-2 border-sig-model pl-3.5">
             <div className="flex items-baseline justify-between gap-3">
               <span className={`text-[15px] ${doingTone(r.doing)}`}>{r.doing}</span>
               <span className="shrink-0 text-xs text-ink-2">

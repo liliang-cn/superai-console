@@ -89,6 +89,7 @@ const FRAG = /* glsl */ `
 uniform vec3 uCold;
 uniform vec3 uHot;
 uniform float uActivity;
+uniform float uDay;
 varying float vDisp;
 varying vec3 vNormal;
 
@@ -98,8 +99,13 @@ void main() {
   float rim = pow(1.0 - abs(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0))), 2.2);
   vec3 base = mix(uCold, uHot, clamp(uActivity, 0.0, 1.0));
   float ridge = smoothstep(-0.2, 0.9, vDisp);
-  vec3 c = base * (0.34 + ridge * 0.85) + base * rim * 1.9;
-  gl_FragColor = vec4(c, 0.5 + rim * 0.5);
+  vec3 night = base * (0.34 + ridge * 0.85) + base * rim * 1.9;
+  // Day: glass, not a lamp. Nearly clear in the middle, the colour gathered
+  // at the rim and on the ridges, so it reads as a volume on a light ground
+  // instead of a grey ball.
+  vec3 day = mix(base, base * 0.55, rim);
+  float dayAlpha = 0.06 + ridge * 0.22 + rim * 0.75;
+  gl_FragColor = mix(vec4(night, 0.5 + rim * 0.5), vec4(day, dayAlpha), uDay);
 }
 `;
 
@@ -155,6 +161,7 @@ export default function VoiceOrb({
       uActivity: { value: 0 },
       uCold: { value: new THREE.Color("#5b8398") },
       uHot: { value: new THREE.Color("#7fe3d0") },
+      uDay: { value: 0 },
     };
 
     const mesh = new THREE.Mesh(
@@ -184,6 +191,26 @@ export default function VoiceOrb({
       }),
     );
     scene.add(cage);
+
+    // Night is light added to black; day is ink on a light ground. Additive
+    // blending on a light page would wash the orb out to nothing, so day paints
+    // it with ordinary blending, in the theme's own darker colours.
+    const paint = () => {
+      const css = getComputedStyle(document.documentElement);
+      const v = (n: string, d: string) => css.getPropertyValue(n).trim() || d;
+      const day = document.documentElement.dataset.theme === "light";
+      uniforms.uCold.value.set(v("--color-orb-cold", "#5b8398"));
+      uniforms.uHot.value.set(v("--color-orb-hot", "#7fe3d0"));
+      const skin = mesh.material as THREE.ShaderMaterial;
+      skin.blending = day ? THREE.NormalBlending : THREE.AdditiveBlending;
+      uniforms.uDay.value = day ? 1 : 0;
+      skin.needsUpdate = true;
+      const wire = cage.material as THREE.MeshBasicMaterial;
+      wire.color.set(day ? "#3d6275" : "#35505e");
+      wire.opacity = day ? 0.22 : 0.28;
+    };
+    paint();
+    window.addEventListener("console-theme", paint);
 
     // The widest the mesh gets: radius 1, plus the displacement ceiling, plus
     // the cage outside it, plus a margin so the rim glow is not clipped.
@@ -226,6 +253,7 @@ export default function VoiceOrb({
 
     return () => {
       cancelAnimationFrame(raf);
+      window.removeEventListener("console-theme", paint);
       ro.disconnect();
       // WebGL contexts are a limited resource and React will mount this twice
       // in StrictMode, so everything allocated above is released by hand.

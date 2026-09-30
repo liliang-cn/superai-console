@@ -39,7 +39,7 @@ export default function IOFeed({ events }: { events: PulseEvent[] }) {
         {events.map((e) => {
           const k = KIND[e.kind] ?? KIND.compact;
           return (
-            <li key={e.seq} className="flex items-baseline gap-2.5">
+            <li key={e.seq} className="arrive flex items-baseline gap-2.5">
               <span className="w-[56px] shrink-0 text-ink-3">{e.at.slice(11, 19)}</span>
               <span
                 className={`mt-[5px] h-[5px] w-[5px] shrink-0 rounded-full ${e.bad ? KIND.error.dot : k.dot}`}

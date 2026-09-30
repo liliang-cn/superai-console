@@ -26,6 +26,9 @@ import Meters from "./components/Meters";
 import HivePanel from "./components/HivePanel";
 import { useHive } from "./lib/hive";
 import Divider from "./components/Divider";
+import ThemeToggle from "./components/ThemeToggle";
+import Scope from "./components/Scope";
+import { Decode, Roll } from "./components/Motion";
 import { useLayout } from "./lib/layout";
 
 // One console.
@@ -87,7 +90,7 @@ export default function App() {
   // event stream on mount, and an EventSource refused with 401 retries by
   // itself, forever, several times a second.
   if (session === "checking") {
-    return <div className="flex h-dvh items-center justify-center bg-black text-[11px] tracking-[0.2em] text-ink-3">…</div>;
+    return <div className="console-ground flex h-dvh items-center justify-center text-[11px] tracking-[0.2em] text-ink-3">…</div>;
   }
   if (session === "out") {
     return <Gate onIn={() => setSession("in")} />;
@@ -159,9 +162,9 @@ function Console() {
 
   const counts: Record<Feed, React.ReactNode> = {
     said: chat.busy ? <Lit>answering</Lit> : chat.turns.length ? `${chat.turns.length} turns` : "none",
-    memory: meter ? `${meter.memory} calls` : undefined,
+    memory: meter ? <><Roll value={meter.memory} /> calls</> : undefined,
     task: meter?.runs.length ? `${meter.runs.length} in flight` : chat.busy ? "sending" : "none",
-    io: meter ? `${meter.tokens.toLocaleString()} tokens · ${meter.calls} calls` : undefined,
+    io: meter ? <><Roll value={meter.tokens} /> tokens · <Roll value={meter.calls} /> calls</> : undefined,
     hive: hive.status
       ? hive.role === "queen"
         ? `${hive.status.members.filter((m) => m.state === "live").length} live`
@@ -188,6 +191,8 @@ function Console() {
       // the orb's flex-1 then has no height to claim and the canvas spills
       // out behind the controls.
       className={phone ? "h-full" : "row-span-2 border-r border-rule"}
+      index={0}
+      ping={`${voice.listening}${speaker.speaking}${chat.turns.length}`}
     >
       <div className="flex h-full flex-col">
         <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center">
@@ -234,7 +239,7 @@ function Console() {
               onChange={(e) => setTyped(e.target.value)}
               placeholder="or type a message"
               aria-label="Message SuperAI"
-              className="h-[42px] w-full border border-white/12 bg-transparent px-3 text-[13px] text-ink-0 placeholder:text-ink-3 focus:border-sig-model/50 focus:outline-none"
+              className="h-[42px] w-full border border-line bg-transparent px-3 text-[13px] text-ink-0 placeholder:text-ink-3 focus:border-sig-model/50 focus:outline-none"
             />
           </form>
           <button
@@ -243,7 +248,7 @@ function Console() {
             className={`h-[46px] w-full border text-[11px] font-medium tracking-[0.22em] transition-colors ${
               voice.listening
                 ? "border-sig-model/45 bg-sig-model/10 text-sig-model hover:bg-sig-model/15"
-                : "border-white/20 text-ink-1 hover:border-white/35 hover:text-ink-0"
+                : "border-line-strong text-ink-1 hover:border-ink-3 hover:text-ink-0"
             }`}
           >
             {voice.listening ? "STOP" : "LISTEN"}
@@ -260,14 +265,17 @@ function Console() {
   );
 
   return (
-    <div className="flex h-dvh flex-col bg-black text-ink-1">
-      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-rule px-5">
-        <span className="text-xs font-semibold tracking-[0.34em] text-ink-0">SUPERAI</span>
+    <div className="console-ground flex h-dvh flex-col text-ink-1">
+      <header className={`relative z-10 flex h-12 shrink-0 items-center border-b border-rule ${phone ? "gap-2 px-4" : "gap-4 px-5"}`}>
+        <Decode text="SUPERAI" step={55} className="text-xs font-semibold tracking-[0.34em] text-ink-0" />
         {!phone ? (
-          <span className="text-[10px] font-medium tracking-[0.26em] text-ink-3">CONSOLE</span>
+          <Decode text="CONSOLE" delay={350} step={40} className="text-[10px] font-medium tracking-[0.26em] text-ink-3" />
         ) : null}
-        <span className="flex-1" />
+        {/* The agent's pulse, where the eye rests between the name and the
+            numbers: flat when idle, swinging when work lands. */}
+        <div className={`flex min-w-0 flex-1 justify-center ${phone ? "" : "px-6"}`}>{!phone ? <Scope meter={meter} /> : null}</div>
         <Status meter={meter} error={error} phone={phone} hive={hive.active ? counts.hive : null} role={hive.role} />
+        <ThemeToggle />
       </header>
 
       {phone ? (
@@ -315,6 +323,8 @@ function Console() {
               }
               note={counts[feed]}
               className="h-full"
+              index={1}
+              ping={feed === "memory" ? meter?.memory : feed === "io" ? meter?.events.length : feed === "hive" ? hive.mail.length + hive.tasks.length : feed === "task" ? meter?.calls : chat.turns.length}
             >
               {feed === "said" ? (
                 <Exchange turns={chat.turns} speaking={speaker.speaking} />
@@ -355,7 +365,14 @@ function Console() {
               larger share: it is the only thing on this screen that shows
               shape rather than sequence, and a list can be read in a strip
               while a graph cannot. */}
-          <Panel title="MEMORY" note={counts.memory} className="border-r border-b border-rule">
+          <Panel
+            title="MEMORY"
+            note={counts.memory}
+            className="border-r border-b border-rule"
+            index={1}
+            ping={meter?.memory}
+            pingColor="var(--color-sig-tool)"
+          >
             <div className="flex h-full flex-col">
               {/* The graph takes what the log is not using. Fixed shares put a
                   4,657-edge nebula in 234px while an empty feed sat under it
@@ -401,6 +418,9 @@ function Console() {
               )
             }
             className="border-b border-rule"
+            index={2}
+            ping={hive.active && taskView === "hive" ? `${hive.mail.length}:${hive.tasks.length}` : meter?.calls}
+            pingColor={hive.active && taskView === "hive" && hive.mail.length ? "var(--color-mail)" : undefined}
           >
             {hive.active && taskView === "hive" ? (
               <HivePanel hive={hive} />
@@ -422,10 +442,12 @@ function Console() {
             title="EXCHANGE"
             note={chat.busy ? <Lit>answering</Lit> : chat.turns.length ? `${chat.turns.length} turns` : undefined}
             className="border-r border-rule"
+            index={3}
+            ping={`${chat.turns.length}${chat.busy}`}
           >
             <Exchange turns={chat.turns} speaking={speaker.speaking} />
           </Panel>
-          <Panel title="IN · OUT" note={counts.io}>
+          <Panel title="IN · OUT" note={counts.io} index={4} ping={meter?.events.length} pingColor="var(--color-sig-think)">
             <IOFeed events={meter?.events ?? []} />
           </Panel>
 
@@ -492,7 +514,7 @@ function Status({
   }
   if (!meter) return <span className="text-[11px] text-ink-3">connecting…</span>;
   return (
-    <span className="flex items-center gap-4 text-[11px] text-ink-3">
+    <span className={`flex items-center whitespace-nowrap text-[11px] text-ink-3 ${phone ? "gap-2.5" : "gap-4"}`}>
       {role ? (
         <span className="flex items-center gap-1.5 text-ink-1" title="This SuperAI is part of a hive">
           <span className="text-[9px] font-semibold tracking-[0.18em] text-sig-model">{role.toUpperCase()}</span>
@@ -509,11 +531,11 @@ function Status({
       )}
       {!phone ? (
         <>
-          <span>{meter.goroutines}g</span>
-          <span>{Math.round(meter.cpu)}% cpu</span>
+          <span><Roll value={meter.goroutines} />g</span>
+          <span><Roll value={meter.cpu} />% cpu</span>
         </>
       ) : null}
-      <span>{(meter.heap / 1024 / 1024).toFixed(0)} MB</span>
+      <span><Roll value={meter.heap / 1024 / 1024} /> MB</span>
     </span>
   );
 }

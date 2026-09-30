@@ -148,15 +148,15 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
               return (
                 <li
                   key={`m-${m.id}-${m.dir}`}
-                  className={`grid grid-cols-[10px_auto_1fr_auto] items-center gap-3 border-b border-rule-soft px-4 py-2 text-[11px] ${m.dir === "peer" ? "opacity-75" : ""}`}
+                  className={`arrive grid grid-cols-[10px_auto_1fr_auto] items-center gap-3 border-b border-rule-soft px-4 py-2 text-[11px] ${m.dir === "peer" ? "opacity-75" : ""}`}
                   title={m.text}
                 >
-                  <span className="text-[10px] leading-none text-[#b18cff]">✉</span>
-                  <span className="whitespace-nowrap text-[#b18cff]">
+                  <span className="text-[10px] leading-none text-mail">✉</span>
+                  <span className="whitespace-nowrap text-mail">
                     {short(m.from)} → {short(m.to)}
                   </span>
                   <span className="truncate text-ink-1">{m.text}</span>
-                  <span className="w-[4ch] whitespace-nowrap text-right tabular-nums text-ink-3">
+                  <span className="min-w-[4ch] whitespace-nowrap text-right tabular-nums text-ink-3">
                     {span(now - Date.parse(m.at))}
                   </span>
                 </li>
@@ -183,7 +183,7 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
             return (
               <li
                 key={t.id}
-                className="grid grid-cols-[10px_auto_1fr_auto_auto] items-center gap-3 border-b border-rule-soft px-4 py-2 text-[11px]"
+                className="arrive grid grid-cols-[10px_auto_1fr_auto_auto] items-center gap-3 border-b border-rule-soft px-4 py-2 text-[11px]"
                 title={`${t.id}\n\n${t.prompt}`}
               >
                 <span
@@ -203,7 +203,7 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
                   {doing}
                   {t.tools > 0 ? ` · ${t.tools}` : ""}
                 </span>
-                <span className="w-[4ch] whitespace-nowrap text-right tabular-nums text-ink-3">
+                <span className="min-w-[4ch] whitespace-nowrap text-right tabular-nums text-ink-3">
                   {span(end - Date.parse(t.started_at))}
                 </span>
               </li>

@@ -53,7 +53,7 @@ export default function MemoryFeed({ events }: { events: PulseEvent[] }) {
     <div ref={boxRef} className="h-full overflow-y-auto px-4 pb-4">
       <ol className="space-y-[5px] text-xs">
         {events.map((e) => (
-          <li key={e.seq} className="flex items-baseline gap-2.5">
+          <li key={e.seq} className="arrive flex items-baseline gap-2.5">
             <span className="w-[56px] shrink-0 text-ink-3">{e.at.slice(11, 19)}</span>
             <span className={`shrink-0 ${tone(e.name, e.bad)}`} title={e.name}>
               {verb(e.name)}
