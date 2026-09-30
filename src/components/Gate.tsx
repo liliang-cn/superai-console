@@ -75,7 +75,7 @@ export default function Gate({ onIn }: { onIn: () => void }) {
   };
 
   return (
-    <div className="console-ground flex h-dvh items-center justify-center px-6">
+    <div className="console-ground flex h-dvh items-center justify-center overflow-hidden px-6">
       <div className="absolute right-4 top-3">
         <ThemeToggle />
       </div>

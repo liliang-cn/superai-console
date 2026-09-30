@@ -266,7 +266,9 @@ function Console() {
   );
 
   return (
-    <div className="console-ground flex h-dvh flex-col text-ink-1">
+    // overflow-hidden: this is a console, not a page. Nothing in it is meant to
+    // scroll the window, so nothing drawn past an edge may widen it.
+    <div className="console-ground flex h-dvh flex-col overflow-hidden text-ink-1">
       <header className={`relative z-10 flex h-12 shrink-0 items-center border-b border-rule ${phone ? "gap-2 px-4" : "gap-4 px-5"}`}>
         <Decode text="SUPERAI" step={55} className="text-xs font-semibold tracking-[0.34em] text-ink-0" />
         {!phone ? (

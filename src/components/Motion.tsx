@@ -114,11 +114,19 @@ export function Sweep({ on, color }: { on: unknown; color?: string }) {
     if (was === on || was === undefined || was === null) return;
     setN((k) => k + 1);
   }, [on]);
-  if (n === 0) return null;
+  const [done, setDone] = useState(0);
+  if (n === 0 || done === n) return null;
   const style = color ? ({ "--sweep": color } as React.CSSProperties) : undefined;
   return (
-    <span key={n} aria-hidden="true" style={style}>
-      <span className="panel-sweep" />
+    // Gone once it has played. A slug left behind at the end of its run sits
+    // past the panel's right edge, and on the last column that made the whole
+    // page wider than the window — scrollable sideways, for good, after one
+    // event.
+    <span key={n} aria-hidden="true" style={style} onAnimationEnd={(e) => e.target === e.currentTarget.lastElementChild && setDone(n)}>
+      {/* The slug runs inside a strip that clips it to the panel. */}
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-3 overflow-hidden">
+        <span className="panel-sweep" />
+      </span>
       <span className="panel-flash tl" />
       <span className="panel-flash tr" />
       <span className="panel-flash bl" />
