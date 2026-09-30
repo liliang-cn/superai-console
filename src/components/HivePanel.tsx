@@ -44,7 +44,7 @@ function useSplit() {
 }
 
 export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }) {
-  const { status, tasks, ready, stage } = hive;
+  const { status, tasks, mail, ready, stage } = hive;
   const [split, setSplit] = useSplit();
   const host = useRef<HTMLDivElement>(null);
   const grab = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -82,6 +82,16 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
       Date.parse(b.started_at) - Date.parse(a.started_at),
   );
   const running = tasks.filter((t) => t.state === "running").length;
+  // Messages sit among the orders by time; running orders stay on top.
+  type Row = { kind: "task"; t: (typeof tasks)[number]; at: number } | { kind: "mail"; m: (typeof mail)[number]; at: number };
+  const rows: Row[] = [
+    ...ordered.map((t) => ({ kind: "task" as const, t, at: Date.parse(t.started_at) })),
+    ...mail.map((m) => ({ kind: "mail" as const, m, at: Date.parse(m.at) })),
+  ].sort(
+    (a, b) =>
+      Number(b.kind === "task" && b.t.state === "running") - Number(a.kind === "task" && a.t.state === "running") ||
+      b.at - a.at,
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col" ref={host}>
@@ -123,7 +133,7 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
         {running > 0 ? <span className="text-sig-model">{running} running</span> : null}
       </div>
       <ul className="min-h-0 flex-1 overflow-y-auto border-t border-rule-soft">
-        {ordered.length === 0 ? (
+        {rows.length === 0 ? (
           <li>
             <Vacant>
               {status.role === "queen"
@@ -132,7 +142,27 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
             </Vacant>
           </li>
         ) : (
-          ordered.map((t) => {
+          rows.map((row) => {
+            if (row.kind === "mail") {
+              const m = row.m;
+              return (
+                <li
+                  key={`m-${m.id}-${m.dir}`}
+                  className={`grid grid-cols-[10px_auto_1fr_auto] items-center gap-3 border-b border-rule-soft px-4 py-2 text-[11px] ${m.dir === "peer" ? "opacity-75" : ""}`}
+                  title={m.text}
+                >
+                  <span className="text-[10px] leading-none text-[#b18cff]">✉</span>
+                  <span className="whitespace-nowrap text-[#b18cff]">
+                    {short(m.from)} → {short(m.to)}
+                  </span>
+                  <span className="truncate text-ink-1">{m.text}</span>
+                  <span className="w-[4ch] whitespace-nowrap text-right tabular-nums text-ink-3">
+                    {span(now - Date.parse(m.at))}
+                  </span>
+                </li>
+              );
+            }
+            const t = row.t;
             const end = t.ended_at && !t.ended_at.startsWith("0001") ? Date.parse(t.ended_at) : now;
             const doing =
               t.state !== "running"

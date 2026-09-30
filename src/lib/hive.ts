@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { events as openEvents, rpc } from "./api";
 import type { StageHandle, StagePulse } from "../components/HiveStage";
+import { QUEEN, SELF } from "../components/hiveFx";
 
 // The hive, as this console sees it.
 //
@@ -33,17 +34,33 @@ export type HiveTask = {
   error?: string;
 };
 
+/** A note between two members; dir is this instance's side of it. */
+export type HiveMail = {
+  id: string;
+  from: string;
+  to: string;
+  text: string;
+  reply_to?: string;
+  at: string;
+  dir?: "in" | "out" | "peer";
+};
+
 export type HiveStatus = {
   role: "" | "queen" | "worker";
   name: string;
   members: HiveMember[];
   tasks?: HiveTask[];
-  queen?: { url: string; joined: boolean; error: string };
+  messages?: HiveMail[];
+  queen?: { url: string; name?: string; joined: boolean; error: string };
 };
 
 export function useHive() {
   const [status, setStatus] = useState<HiveStatus | null>(null);
   const [tasks, setTasks] = useState<HiveTask[]>([]);
+  const [mail, setMail] = useState<HiveMail[]>([]);
+  // The latest status, for the stream handler, which is set up once.
+  const statusRef = useRef<HiveStatus | null>(null);
+  statusRef.current = status;
   const [ready, setReady] = useState(false);
   const stage = useRef<StageHandle>(null);
   const seeded = useRef(false);
@@ -58,6 +75,7 @@ export function useHive() {
       if (!seeded.current) {
         seeded.current = true;
         setTasks(s.tasks ?? []);
+        setMail((s.messages ?? []).map((m) => ({ ...m, dir: "in" as const })));
       }
       setReady(true);
     } catch {
@@ -89,6 +107,13 @@ export function useHive() {
       } else if (ev.name === "hive:pulse") {
         // Straight to the stage: a re-render per pulse would be one per token.
         stage.current?.pulse(ev.payload as StagePulse);
+      } else if (ev.name === "hive:message") {
+        const m = ev.payload as HiveMail;
+        if (!m?.id) return;
+        setMail((cur) => (cur.some((x) => x.id === m.id && x.dir === m.dir) ? cur : [...cur, m].slice(-60)));
+        const src = stageId(statusRef.current, m.from);
+        const dst = stageId(statusRef.current, m.to);
+        if (src && dst) stage.current?.pulse({ task: m.id, worker: m.from, dir: "peer", kind: "message", src, dst, text: m.text });
       }
     });
   }, []);
@@ -125,6 +150,15 @@ export function useHive() {
         }
         window.setTimeout(() => put({ ...base, state: "done", tools: 3 }), i * 700 + 9000);
       });
+      if (names.length > 2) {
+        const say = (from: string, to: string, text: string, at: number) =>
+          window.setTimeout(() => {
+            setMail((cur) => [...cur, { id: `demo-m-${Date.now()}`, from, to, text, at: new Date().toISOString(), dir: "peer" as const }]);
+            stage.current?.pulse({ task: "m", worker: from, dir: "peer", kind: "message", src: from, dst: to, text });
+          }, at);
+        say(names[2], QUEEN, "found it: orange2 disk is 97% full", 3000);
+        say(names[0], names[2], "the config is in memory under hive/orange", 5200);
+      }
       if (names.length > 3) {
         const id = `demo-peer-${Date.now()}`;
         const t: HiveTask = { id, worker: names[1], from: names[3], dir: "peer", prompt: "demo question", state: "running", tools: 0, started_at: new Date().toISOString() };
@@ -136,5 +170,14 @@ export function useHive() {
   }, [status]);
 
   const role = status?.role ?? "";
-  return { status, tasks, ready, stage, role, active: role !== "" };
+  return { status, tasks, mail, ready, stage, role, active: role !== "" };
+}
+
+/** Where a member is on the stage, or undefined when the stage does not draw
+ *  it (a worker's peers, on a worker's own stage). */
+function stageId(s: HiveStatus | null, name: string): string | undefined {
+  if (!s) return undefined;
+  if (name === s.name) return s.role === "worker" ? SELF : QUEEN;
+  if (s.role === "worker") return name === (s.queen?.name || "queen") || name === "queen" ? QUEEN : undefined;
+  return s.members.some((m) => m.name === name) ? name : undefined;
 }
