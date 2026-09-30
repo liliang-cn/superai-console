@@ -27,6 +27,7 @@ import HivePanel from "./components/HivePanel";
 import { useHive } from "./lib/hive";
 import Divider from "./components/Divider";
 import ThemeToggle from "./components/ThemeToggle";
+import PalettePicker from "./components/PalettePicker";
 import Scope from "./components/Scope";
 import { Decode, Roll } from "./components/Motion";
 import { useLayout } from "./lib/layout";
@@ -275,6 +276,7 @@ function Console() {
             numbers: flat when idle, swinging when work lands. */}
         <div className={`flex min-w-0 flex-1 justify-center ${phone ? "" : "px-6"}`}>{!phone ? <Scope meter={meter} /> : null}</div>
         <Status meter={meter} error={error} phone={phone} hive={hive.active ? counts.hive : null} role={hive.role} />
+        <PalettePicker />
         <ThemeToggle />
       </header>
 

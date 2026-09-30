@@ -2,7 +2,7 @@ import { forwardRef, lazy, Suspense, useImperativeHandle, useRef, useState } fro
 import HiveStage, { type Look as FlowLook } from "./HiveStage";
 import HiveHex from "./HiveHex";
 import type { StageHandle, StageProps } from "./hiveFx";
-import { useThemeValue } from "../lib/theme";
+import { useLookKey } from "../lib/theme";
 
 // The hive stage, in whichever look and dimension the viewer picked.
 //
@@ -61,7 +61,8 @@ function initial(can3d: boolean): Choice {
 }
 
 const HiveStageView = forwardRef<StageHandle, StageProps>(function HiveStageView(props, ref) {
-  const theme = useThemeValue();
+  // Theme and palette both: a 3D scene reads its colours once, when built.
+  const theme = useLookKey();
   const can3d = webgl();
   const [choice, setChoice] = useState<Choice>(() => initial(can3d));
   const child = useRef<StageHandle>(null);

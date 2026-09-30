@@ -176,7 +176,7 @@ export default function HivePanel({ hive }: { hive: ReturnType<typeof useHive> }
               t.state === "running"
                 ? "text-sig-model"
                 : t.state === "done"
-                  ? "text-orb-hot"
+                  ? "text-sig-ok"
                   : t.state === "failed"
                     ? "text-sig-bad"
                     : "text-sig-tool";

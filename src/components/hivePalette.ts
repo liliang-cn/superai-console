@@ -11,7 +11,7 @@ export function palette() {
   return {
     light,
     accent: v("--color-sig-model", "#5fd3e8"),
-    green: v("--color-orb-hot", "#7fe3d0"),
+    green: v("--color-sig-ok", "#7fe3d0"),
     red: v("--color-sig-bad", "#f0687f"),
     amber: v("--color-sig-tool", "#e8b366"),
     // Messages between members. None of the five signals means "a note passed

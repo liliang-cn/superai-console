@@ -32,6 +32,7 @@
   --color-sig-tool: #e8b366; /* tool call, a write to memory */
   --color-sig-think: #8e9be8; /* reasoning, mid-turn */
   --color-sig-bad: #f0687f; /* a call that failed */
+  --color-sig-ok: #7fe3d0; /* something that finished well */
   --color-mail: #b18cff; /* a message between hive members */
 
   /* The orb, cold at rest to hot at work. */
@@ -45,8 +46,9 @@
   /* Controls: an input's edge, and the stronger edge of a button. */
   --color-line: rgba(255, 255, 255, 0.12);
   --color-line-strong: rgba(255, 255, 255, 0.2);
-  /* The dot grid under everything. Barely there; it is texture, not content. */
-  --color-grid: rgba(95, 211, 232, 0.07);
+  /* The dot grid under everything, in the accent. Barely there; it is
+     texture, not content. */
+  --color-grid: color-mix(in srgb, var(--color-sig-model) 8%, transparent);
 }
 
 /* Day. A lab bench under daylight rather than a screen in a dark room: a cool
@@ -64,6 +66,7 @@
   --color-sig-tool: #94580a; /* 4.9:1 */
   --color-sig-think: #4453c4; /* 5.5:1 */
   --color-sig-bad: #b8263f; /* 5.3:1 */
+  --color-sig-ok: #0a7765; /* 4.7:1 */
   --color-mail: #6d3fd0; /* 5.5:1 */
   --color-orb-cold: #3d6275;
   --color-orb-hot: #0a7765; /* 4.7:1 */
@@ -71,7 +74,7 @@
   --color-rule-soft: rgba(11, 26, 32, 0.08);
   --color-line: rgba(11, 26, 32, 0.18);
   --color-line-strong: rgba(11, 26, 32, 0.3);
-  --color-grid: rgba(5, 111, 128, 0.11);
+  --color-grid: color-mix(in srgb, var(--color-sig-model) 13%, transparent);
 }
 
 html,

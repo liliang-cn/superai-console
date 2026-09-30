@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AIRenderer } from "@ai-gui/react";
 import type { Meter } from "../lib/api";
 import { APP_LOCALE, plugins, registry } from "../lib/aigui";
-import { useThemeValue } from "../lib/theme";
+import { useLookKey, useThemeValue } from "../lib/theme";
 
 // The numbers, drawn by the same engine that draws the answers.
 //
@@ -56,6 +56,7 @@ const EXTRA = {
 export default function Meters({ meter }: { meter: Meter | null }) {
   const slow = useSlow(meter);
   const theme = useThemeValue();
+  const look = useLookKey();
 
   const block = useMemo(() => {
     if (!slow) return null;
@@ -116,7 +117,7 @@ export default function Meters({ meter }: { meter: Meter | null }) {
       }) +
       "\n```"
     );
-  }, [slow, theme]);
+  }, [slow, theme, look]);
 
   if (!block) return null;
   return (
