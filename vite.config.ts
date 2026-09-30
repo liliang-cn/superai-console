@@ -25,6 +25,9 @@ export default defineConfig(({ mode }) => {
       port: 43917,
       strictPort: true,
       proxy: {
+        // The memory graph is an iframe onto the backend's own page. Without this
+        // it fell through to the SPA fallback and drew the console inside itself.
+        "/graph": { target, changeOrigin: true },
         "/api": {
           target,
           changeOrigin: true,

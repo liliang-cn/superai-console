@@ -23,6 +23,8 @@ import Exchange from "./components/Exchange";
 import Gate, { useSession } from "./components/Gate";
 import MemoryGraph, { useGraph } from "./components/MemoryGraph";
 import Meters from "./components/Meters";
+import HivePanel from "./components/HivePanel";
+import { useHive } from "./lib/hive";
 import Divider from "./components/Divider";
 import { useLayout } from "./lib/layout";
 
@@ -77,7 +79,7 @@ function useMeter() {
   return { meter, error };
 }
 
-type Feed = "said" | "task" | "memory" | "io";
+type Feed = "said" | "task" | "memory" | "io" | "hive";
 
 export default function App() {
   const [session, setSession] = useSession();
@@ -98,6 +100,20 @@ function Console() {
   const phone = usePhone();
   const [feed, setFeed] = useState<Feed>("said");
   const [typed, setTyped] = useState("");
+  // Hive mode. It exists only when this SuperAI is a queen or a worker; on a
+  // standalone one none of it is drawn and the console is exactly what it was.
+  const hive = useHive();
+  const [taskView, setTaskView] = useState<"task" | "hive">("task");
+  // The first time the backend turns out to be part of a hive, show it: that is
+  // what someone opening the console on a queen came to see. After that the
+  // choice is theirs and is not taken back.
+  const hiveSeen = useRef(false);
+  useEffect(() => {
+    if (hive.active && !hiveSeen.current) {
+      hiveSeen.current = true;
+      setTaskView("hive");
+    }
+  }, [hive.active]);
   const graph = useGraph();
   const { layout, drag, reset } = useLayout();
 
@@ -146,6 +162,11 @@ function Console() {
     memory: meter ? `${meter.memory} calls` : undefined,
     task: meter?.runs.length ? `${meter.runs.length} in flight` : chat.busy ? "sending" : "none",
     io: meter ? `${meter.tokens.toLocaleString()} tokens · ${meter.calls} calls` : undefined,
+    hive: hive.status
+      ? hive.role === "queen"
+        ? `${hive.status.members.filter((m) => m.state === "live").length} live`
+        : hive.role
+      : undefined,
   };
 
   const voicePanel = (
@@ -246,7 +267,7 @@ function Console() {
           <span className="text-[10px] font-medium tracking-[0.26em] text-ink-3">CONSOLE</span>
         ) : null}
         <span className="flex-1" />
-        <Status meter={meter} error={error} phone={phone} />
+        <Status meter={meter} error={error} phone={phone} hive={hive.active ? counts.hive : null} role={hive.role} />
       </header>
 
       {phone ? (
@@ -259,6 +280,7 @@ function Console() {
               [
                 ["said", "SAID"],
                 ["task", "TASK"],
+                ...(hive.active ? [["hive", "HIVE"]] : []),
                 ["memory", "MEMORY"],
                 ["io", "IN · OUT"],
               ] as [Feed, string][]
@@ -285,9 +307,11 @@ function Console() {
                   ? "EXCHANGE"
                   : feed === "task"
                     ? "TASK"
-                    : feed === "memory"
-                      ? "MEMORY"
-                      : "IN · OUT"
+                    : feed === "hive"
+                      ? "HIVE"
+                      : feed === "memory"
+                        ? "MEMORY"
+                        : "IN · OUT"
               }
               note={counts[feed]}
               className="h-full"
@@ -296,6 +320,8 @@ function Console() {
                 <Exchange turns={chat.turns} speaking={speaker.speaking} />
               ) : feed === "task" ? (
                 <Tasks runs={meter?.runs ?? []} meter={meter} />
+              ) : feed === "hive" ? (
+                <HivePanel hive={hive} />
               ) : feed === "memory" ? (
                 <div className="flex h-full flex-col">
                   <div className="min-h-0 flex-1">
@@ -348,15 +374,46 @@ function Console() {
           </Panel>
           {/* Task sits top right and carries the weight: it is the only panel
               about *now*. */}
-          <Panel title="TASK" note={counts.task} className="border-b border-rule">
-            <div className="flex h-full flex-col">
-              <div className="min-h-0 flex-1">
-                <Tasks runs={meter?.runs ?? []} meter={meter} />
+          <Panel
+            title={hive.active && taskView === "hive" ? "HIVE" : "TASK"}
+            note={
+              hive.active ? (
+                <span className="flex items-center gap-3">
+                  <span>{taskView === "hive" ? counts.hive : counts.task}</span>
+                  <span className="flex" role="group" aria-label="Task or hive">
+                    {(["task", "hive"] as const).map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        aria-pressed={taskView === k}
+                        onClick={() => setTaskView(k)}
+                        className={`px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em] transition-colors ${
+                          taskView === k ? "text-sig-model" : "text-ink-3 hover:text-ink-0"
+                        }`}
+                      >
+                        {k.toUpperCase()}
+                      </button>
+                    ))}
+                  </span>
+                </span>
+              ) : (
+                counts.task
+              )
+            }
+            className="border-b border-rule"
+          >
+            {hive.active && taskView === "hive" ? (
+              <HivePanel hive={hive} />
+            ) : (
+              <div className="flex h-full flex-col">
+                <div className="min-h-0 flex-1">
+                  <Tasks runs={meter?.runs ?? []} meter={meter} />
+                </div>
+                <div className="shrink-0 border-t border-rule-soft">
+                  <Meters meter={meter} />
+                </div>
               </div>
-              <div className="shrink-0 border-t border-rule-soft">
-                <Meters meter={meter} />
-              </div>
-            </div>
+            )}
           </Panel>
           {/* The conversation takes the bottom middle rather than a corner:
               it is the only panel where the agent speaks in its own words,
@@ -417,10 +474,14 @@ function Status({
   meter,
   error,
   phone,
+  hive,
+  role,
 }: {
   meter: Meter | null;
   error: string;
   phone: boolean;
+  hive: React.ReactNode;
+  role: string;
 }) {
   if (error) {
     return (
@@ -432,6 +493,12 @@ function Status({
   if (!meter) return <span className="text-[11px] text-ink-3">connecting…</span>;
   return (
     <span className="flex items-center gap-4 text-[11px] text-ink-3">
+      {role ? (
+        <span className="flex items-center gap-1.5 text-ink-1" title="This SuperAI is part of a hive">
+          <span className="text-[9px] font-semibold tracking-[0.18em] text-sig-model">{role.toUpperCase()}</span>
+          {role === "queen" ? hive : null}
+        </span>
+      ) : null}
       {meter.live ? (
         <Lit>live</Lit>
       ) : (
