@@ -49,6 +49,29 @@ import { useLayout } from "./lib/layout";
  *  said here has continuity and shows up in the desktop app's History. */
 const SESSION = "console";
 
+/** Text or voice. Text by default: answers appear and are not read out, and
+ *  the microphone stays closed. Voice is chosen, and remembered. */
+type Mode = "text" | "voice";
+const MODE_KEY = "console.mode";
+function useMode() {
+  const [mode, setMode] = useState<Mode>(() => {
+    try {
+      return localStorage.getItem(MODE_KEY) === "voice" ? "voice" : "text";
+    } catch {
+      return "text";
+    }
+  });
+  const choose = useCallback((m: Mode) => {
+    setMode(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      // Not remembered; still switched.
+    }
+  }, []);
+  return [mode, choose] as const;
+}
+
 function useMeter() {
   const [meter, setMeter] = useState<Meter | null>(null);
   const [error, setError] = useState("");
@@ -129,9 +152,15 @@ function Console() {
   // each other in a circle: the speaker suspends the voice, the voice's
   // utterances are sent by the chat, and the chat's answers are spoken. The
   // ref is where the circle is cut.
+  const [mode, setMode] = useMode();
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const voiceRef = useRef<{ suspend: (quiet: boolean) => void } | null>(null);
   const speaker = useSpeaker((quiet) => voiceRef.current?.suspend(quiet));
-  const chat = useChat(SESSION, (answer) => speaker.say(answer));
+  // Answers are read out only in voice mode.
+  const chat = useChat(SESSION, (answer) => {
+    if (modeRef.current === "voice") speaker.say(answer);
+  });
   const voice = useVoice(
     useCallback(
       (text: string) => {
@@ -173,19 +202,50 @@ function Console() {
       : undefined,
   };
 
+  // Leaving voice mode stops what is being said and closes the microphone.
+  const pickMode = (m: Mode) => {
+    if (m === "text") {
+      speaker.shut();
+      if (voice.listening) voice.stop();
+    }
+    setMode(m);
+  };
+  const modeSwitch = (
+    <span className="flex" role="group" aria-label="Text or voice">
+      {(["text", "voice"] as const).map((k) => (
+        <button
+          key={k}
+          type="button"
+          aria-pressed={mode === k}
+          onClick={() => pickMode(k)}
+          className={`px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em] transition-colors ${
+            mode === k ? "text-sig-model" : "text-ink-3 hover:text-ink-0"
+          }`}
+        >
+          {k.toUpperCase()}
+        </button>
+      ))}
+    </span>
+  );
+
   const voicePanel = (
     <Panel
-      title="VOICE"
+      title={mode === "voice" ? "VOICE" : "MESSAGE"}
       note={
-        speaker.speaking ? (
-          <Lit>speaking</Lit>
-        ) : voice.listening ? (
-          <Lit>listening</Lit>
-        ) : voice.canTranscribe ? (
-          "closed"
-        ) : (
-          "no transcription"
-        )
+        <span className="flex items-center gap-3">
+          {mode === "voice" ? (
+            speaker.speaking ? (
+              <Lit>speaking</Lit>
+            ) : voice.listening ? (
+              <Lit>listening</Lit>
+            ) : voice.canTranscribe ? (
+              <span>closed</span>
+            ) : (
+              <span>no transcription</span>
+            )
+          ) : null}
+          {modeSwitch}
+        </span>
       }
       // h-full matters on a phone: there the panel is put inside a sized box
       // rather than a grid cell, and without it it shrinks to its content —
@@ -212,11 +272,9 @@ function Console() {
               <span className="text-ink-3">{voice.partial}</span>
             ) : chat.turns.length ? (
               <span className="text-ink-0">{chat.turns[chat.turns.length - 1].said}</span>
-            ) : (
-              <span className="text-ink-3">
-                Press listen, then speak. What is heard goes to SuperAI as a message.
-              </span>
-            )}
+            ) : mode === "voice" ? (
+              <span className="text-ink-3">Press listen, then speak.</span>
+            ) : null}
           </p>
           {voice.error ? <p className="text-[11px] text-sig-bad">{voice.error}</p> : null}
           {/* The keyboard way in.
@@ -238,11 +296,12 @@ function Console() {
             <input
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
-              placeholder="or type a message"
+              placeholder={mode === "voice" ? "or type a message" : "Message SuperAI"}
               aria-label="Message SuperAI"
               className="h-[42px] w-full border border-line bg-transparent px-3 text-[13px] text-ink-0 placeholder:text-ink-3 focus:border-sig-model/50 focus:outline-none"
             />
           </form>
+          {mode === "voice" ? (
           <button
             type="button"
             onClick={voice.listening ? voice.stop : voice.start}
@@ -254,7 +313,8 @@ function Console() {
           >
             {voice.listening ? "STOP" : "LISTEN"}
           </button>
-          {!voice.canTranscribe ? (
+          ) : null}
+          {mode === "voice" && !voice.canTranscribe ? (
             <p className="text-[11px] leading-[1.6] text-ink-3">
               This browser has no speech recognition, so the shape follows your voice but
               nothing is transcribed. Chrome has it.
